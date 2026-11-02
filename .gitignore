@@ -218,3 +218,16 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- HerbaGuard -------------------------------------------------------------
+# The Python template above ignores every `lib/` directory; frontend source lives in one.
+!frontend/src/lib/
+# Raw source snapshots and downloaded documents (licences may forbid redistribution).
+data/raw/*
+!data/raw/.gitkeep
+# Frontend build output and dependencies
+node_modules/
+frontend/dist/
+# Local scratch / editor
+.DS_Store
+*.local

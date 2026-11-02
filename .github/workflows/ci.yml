@@ -1,0 +1,90 @@
+# Continuous integration: validation only. This workflow never commits, pushes or deploys.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (lint, types, tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: herbaguard
+          POSTGRES_PASSWORD: herbaguard
+          POSTGRES_DB: herbaguard
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U herbaguard"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      HERBAGUARD_ENVIRONMENT: test
+      HERBAGUARD_DATABASE_URL: postgresql+psycopg://herbaguard:herbaguard@127.0.0.1:5432/herbaguard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Ruff lint
+        run: ruff check .
+      - name: Ruff format
+        run: ruff format --check .
+      - name: Mypy
+        run: mypy
+      - name: Migrations match models
+        run: alembic upgrade head && alembic check
+      - name: Tests
+        # Database tests must run (not skip) in CI.
+        # pipefail: without it a failing pytest would be masked by `tee`.
+        run: |
+          set -o pipefail
+          pytest -m "not live" -rs | tee pytest.log
+          if grep -q "SKIPPED" pytest.log; then echo "Database tests were skipped" && exit 1; fi
+
+  frontend:
+    name: Frontend (lint, types, tests, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-fund --no-audit
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  compose:
+    name: Docker images build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build images
+        run: docker compose build
