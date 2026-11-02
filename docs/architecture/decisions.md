@@ -85,3 +85,17 @@ Short records of decisions that shape HerbaGuard. Status values: *Accepted*, *Su
 - **Status:** Accepted (Phase 2)
 - **Decision:** EMA monograph text extracted with pdfplumber (word coordinates) is cross-checked against PDFium (pypdfium2), per section and per use-category column, on recall, precision and token-order similarity. Results are stored with each document and checked by `herbaguard validate`.
 - **Consequences:** Column mixing or lost text in future monograph layouts is detected automatically instead of silently degrading interaction data.
+
+## ADR-014 — Rule-based interaction classes with a finer "finding"
+
+- **Status:** Accepted (Phase 3)
+- **Decision:** The A–E class is computed by a pure function (`domain/interactions.py`) with a fixed decision order. Each result also carries a `finding` (documented interaction / documented precaution / potential / uncertain / label subject not confirmed / mentioned without interaction wording / no interaction reported / no evidence found / insufficient information), so precautions, uncertain findings and "nothing found" are never merged. Severity is relayed verbatim, never computed. Only REG/GOV statements can give class A; PubMed records are never used for classification.
+- **Reason:** Auditability for a safety-relevant output. A model cannot be cited, but a rule can.
+- **Consequences:** Rules are documented in `docs/api/interaction-classification.md` and pinned by tests. Class B from mechanisms waits for Phase 4.
+
+## ADR-015 — Label statements must be about the label's drug
+
+- **Status:** Accepted (Phase 3)
+- **Context:** On real data, an isotretinoin label sentence about St John's wort and *hormonal contraceptives* made "St John's wort + isotretinoin" class A.
+- **Decision:** An openFDA statement can be decisive only if the sentence names the label's drug, or if it sits in the `drug_interactions`, `contraindications` or `boxed_warning` section. Otherwise it is context, and alone it gives class C `label_subject_not_confirmed`.
+- **Consequences:** 7 of 156 real pairs move from A to C. Probably 6 of them are under-classified; the sentence stays visible. A Phase 4/5 refinement (e.g. reviewed exceptions) could restore them with an audit trail.

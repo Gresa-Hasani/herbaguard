@@ -19,14 +19,14 @@ HerbaGuard combines herb-side regulatory monographs (EMA HMPC), drug-side labels
 | 0 | Research and dataset audit | Done — see [`docs/research/`](docs/research/) |
 | 1 | Architecture and foundation | Done — see [`docs/architecture/`](docs/architecture/) |
 | 2 | Data ingestion and normalisation | Done — see [`docs/data/`](docs/data/) |
-| 3 | Backend and core APIs | Not started |
+| 3 | Backend and core APIs | Done — see [`docs/api/`](docs/api/) |
 | 4 | Knowledge graph (relational edges) | Not started |
 | 5 | AI evidence assistant | Not started |
 | 6 | Frontend modules | Not started — module pages are placeholders |
 | 7 | Integration and validation | Not started |
 | 8 | Submission | Not started |
 
-**Implemented now:** project structure; database schema with provenance tables (migrations 0001–0002); FastAPI service (health, readiness, metadata, standard error format, request IDs, structured logging); React application shell with the persistent disclaimer; Docker Compose stack; tests and CI; and a **data pipeline** that ingests the 16 curated herbs from WFO/WCVP/NCBI/GBIF/Wikidata, EMA herbal monographs, NCCIH fact sheets, openFDA drug labels, RxNorm/ATC and PubMed with full provenance and validation. The API does not serve this data yet (Phase 3), and the web app shows no findings.
+**Implemented now:** project structure; database schema with provenance tables (migrations 0001–0002); FastAPI service (health, readiness, metadata, standard error format, request IDs, structured logging); React application shell with the persistent disclaimer; Docker Compose stack; tests and CI; and a **data pipeline** that ingests the 16 curated herbs from WFO/WCVP/NCBI/GBIF/Wikidata, EMA herbal monographs, NCCIH fact sheets, openFDA drug labels, RxNorm/ATC and PubMed with full provenance and validation. The **REST API** (Phase 3) serves plants, drugs, evidence, sources/coverage and a deterministic herb–drug **interaction check (classes A–E)** with full provenance — see [`docs/api/`](docs/api/). The web app does not use it yet (Phase 6).
 
 ## Quick start (Docker)
 

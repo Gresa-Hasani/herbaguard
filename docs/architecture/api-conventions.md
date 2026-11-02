@@ -1,6 +1,6 @@
 # API Conventions
 
-**Status:** Conventions apply from Phase 1. The endpoints implemented so far are listed in §8; domain endpoints follow in Phase 3.
+**Status:** Conventions apply from Phase 1. Implemented endpoints (Phase 1 and Phase 3) are listed in §8.
 
 ## 1. Base path and versioning
 
@@ -82,10 +82,12 @@ These are binding for every endpoint that returns scientific content:
 - `GET` responses for reference data may set `Cache-Control: max-age` (from Phase 3).
 - Rate limiting is not implemented in the MVP (local deployment); it is a production item.
 
-## 8. Implemented endpoints (Phase 1)
+## 8. Implemented endpoints
 
-| Method | Path | Response | Notes |
-|---|---|---|---|
-| GET | `/api/v1/health` | `{"status": "ok"}` | Liveness; no dependencies checked |
-| GET | `/api/v1/health/ready` | `{"status": "ok"\|"degraded", "checks": [...]}` | 200 if the database answers, 503 otherwise |
-| GET | `/api/v1/meta` | name, version, environment, api_version, disclaimer | Source of the disclaimer text |
+Phase 1: health, readiness, meta. Phase 3: plants, drugs, drug classes, evidence, interaction check, sources, coverage — see [../api/endpoints.md](../api/endpoints.md) and [../api/interaction-classification.md](../api/interaction-classification.md).
+
+Additions to the conventions made in Phase 3:
+
+- Every scientific object carries `provenance: [{source_code, source_name, licence, licence_status, retrieved_url, retrieved_at, source_version, extraction_method, location, excerpt}]`.
+- Evidence types are returned as `{code, label, basis, quality_assessed: false, note}`; HerbaGuard never presents a publication type as a quality score.
+- Interaction results carry both `interaction_class` (A–E) and a finer `finding` (documented interaction / precaution, potential, uncertain, label subject not confirmed, mentioned without interaction wording, no interaction reported, no evidence found, insufficient information).

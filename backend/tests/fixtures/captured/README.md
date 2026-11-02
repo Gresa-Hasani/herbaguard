@@ -10,7 +10,7 @@ They are not invented data. Changes made before saving:
 | `gbif_match_*` | GBIF Species API | none |
 | `gbif_vernacular_3189486.json` | GBIF Species API | `results` cut to the first 12 entries |
 | `wikidata_*` | Wikidata Query Service (CC0) | none |
-| `rxnav_*` | NLM RxNav / RxClass | none |
+| `rxnav_*` (incl. Coumadin brand lookup, captured during Phase 3) | NLM RxNav / RxClass | none |
 | `openfda_label_sertraline.json` | openFDA drug label API | one label; only `set_id`, `id`, `version`, `effective_time`, `drug_interactions` and four `openfda` fields kept |
 | `pubmed_efetch_2.xml` | NCBI E-utilities efetch | **abstract text replaced** with a placeholder (publisher copyright); all metadata unchanged |
 | `nccih_st-johns-wort_main.html` | NCCIH (U.S. government work) | only the page's `<main>` element kept |
