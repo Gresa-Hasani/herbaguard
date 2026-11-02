@@ -38,7 +38,7 @@ fda_skip_patterns:
   - {pattern: '^[RS]-', reason: "Single enantiomer (e.g. 'S-mephenytoin'): RxNorm ingredients do not distinguish enantiomers reliably."}
 ema_subject_terms:
   st_johns_wort: [hypericum, "St John's wort"]
-  ginkgo: [ginkgo]
+  ginkgo: [ginkgo, "G. biloba"]   # EMA 4.5: "... indicates that G. biloba may inhibit P-glycoprotein ..."
   garlic: [garlic, allium]
   liquorice: [liquorice, glycyrrhiza]
   green_tea: [camellia, "green tea"]
