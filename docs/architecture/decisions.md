@@ -99,3 +99,21 @@ Short records of decisions that shape HerbaGuard. Status values: *Accepted*, *Su
 - **Context:** On real data, an isotretinoin label sentence about St John's wort and *hormonal contraceptives* made "St John's wort + isotretinoin" class A.
 - **Decision:** An openFDA statement can be decisive only if the sentence names the label's drug, or if it sits in the `drug_interactions`, `contraindications` or `boxed_warning` section. Otherwise it is context, and alone it gives class C `label_subject_not_confirmed`.
 - **Consequences:** 7 of 156 real pairs move from A to C. Probably 6 of them are under-classified; the sentence stays visible. A Phase 4/5 refinement (e.g. reviewed exceptions) could restore them with an audit trail.
+## ADR-016 — Drug-side mechanism data from FDA's healthcare-professional CYP/transporter table
+- **Status:** Accepted (Phase 4)
+- **Context:** Class B needs "drug D is a substrate of enzyme/transporter E" from an authoritative, redistributable source. DrugBank (licence) and PharmGKB (pharmacogenomic focus, share-alike) were excluded; FDA's drug-*development* table lists only index drugs (≈15 substrates). FDA's *For Healthcare Professionals* table (245 rows, content current as of 2026-05-29) lists clinical substrates, inhibitors and inducers with potency categories for 7 CYPs and 9 transporters ([../data/mechanism-sources.md](../data/mechanism-sources.md)).
+- **Decision:** Ingest that table (`fda_cyp_table`, evidence type GOV). The column defines role and potency; footnotes are kept as conditions; non-drug rows are mapped explicitly in `data/curated/mechanism_sources.yaml`; drug names go through RxNorm as in Phase 2. A browser-saved copy can be ingested when fda.gov refuses automated clients (recorded as such).
+- **Consequences:** Drug-side coverage is "examples", not exhaustive — stated in every response. Re-running replaces edges the current page no longer supports.
+## ADR-017 — Deterministic, conservative rules for mechanism-based class B
+- **Status:** Accepted (Phase 4)
+- **Decision:** A herb → enzyme ← drug path supports class B only if the effect is stated for the herbal substance (not a constituent), by a REG/GOV source (in-vitro/animal sentences are stored with that study type), is induction or inhibition not graded weak, and the drug is a substrate per the FDA table. CYP3A4/5 match FDA's grouped CYP3A; nothing else is cross-matched. All paths are shown; non-qualifying ones with reasons. Mechanism-only results carry an explicit "size of effect unknown" caveat. Rules: [../api/mechanism-paths.md](../api/mechanism-paths.md).
+- **Alternatives:** Any shared enzyme → B (rejected: would mark most drugs "potential" for St John's wort and turmeric); computing a risk score from potencies (rejected: HerbaGuard never computes severity).
+## ADR-018 — Herb effects extracted from stored monograph text by narrow sentence rules
+- **Status:** Accepted (Phase 4)
+- **Decision:** EU monograph section 4.5 text stored in Phase 2 is re-read; an effect is stored only for a verb form ("induce(s)", "inhibit(s)", "is an inducer of") whose subject is the herbal preparation, with the targets after the verb read from a fixed table. Relative clauses about other medicines, negations and unclear subjects never produce an edge and are logged (`ema_mechanism_sentence_not_used`) for review. Provenance points to the monograph PDF record and quotes the sentence; `herbaguard validate` checks every quote against the stored section text.
+- **Consequences:** Precision over recall; the logged sentences show what is missed.
+## ADR-019 — Mechanism edges are re-derived, not versioned row by row
+- **Status:** Accepted (Phase 4)
+- **Decision:** Each `mechanisms` run upserts the edges it derives (deterministic UUIDs) and deletes edges of the same source that it no longer derives, together with their provenance links — only if the run had no error-level issues. The source documents themselves keep full lineage in `source_record` (every page version is kept).
+- **Alternatives:** A `status` column with `superseded` as for interaction assertions (rejected for now: edges are a derived index of stored documents, not statements users cite on their own).
+

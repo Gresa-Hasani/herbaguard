@@ -20,13 +20,13 @@ HerbaGuard combines herb-side regulatory monographs (EMA HMPC), drug-side labels
 | 1 | Architecture and foundation | Done — see [`docs/architecture/`](docs/architecture/) |
 | 2 | Data ingestion and normalisation | Done — see [`docs/data/`](docs/data/) |
 | 3 | Backend and core APIs | Done — see [`docs/api/`](docs/api/) |
-| 4 | Knowledge graph (relational edges) | Not started |
+| 4 | Knowledge graph and mechanism integration | Done — see [`docs/api/mechanism-paths.md`](docs/api/mechanism-paths.md), [`docs/data/mechanism-sources.md`](docs/data/mechanism-sources.md) |
 | 5 | AI evidence assistant | Not started |
 | 6 | Frontend modules | Not started — module pages are placeholders |
 | 7 | Integration and validation | Not started |
 | 8 | Submission | Not started |
 
-**Implemented now:** project structure; database schema with provenance tables (migrations 0001–0002); FastAPI service (health, readiness, metadata, standard error format, request IDs, structured logging); React application shell with the persistent disclaimer; Docker Compose stack; tests and CI; and a **data pipeline** that ingests the 16 curated herbs from WFO/WCVP/NCBI/GBIF/Wikidata, EMA herbal monographs, NCCIH fact sheets, openFDA drug labels, RxNorm/ATC and PubMed with full provenance and validation. The **REST API** (Phase 3) serves plants, drugs, evidence, sources/coverage and a deterministic herb–drug **interaction check (classes A–E)** with full provenance — see [`docs/api/`](docs/api/). The web app does not use it yet (Phase 6).
+**Implemented now:** project structure; database schema with provenance tables (migrations 0001–0003); FastAPI service (health, readiness, metadata, standard error format, request IDs, structured logging); React application shell with the persistent disclaimer; Docker Compose stack; tests and CI; and a **data pipeline** that ingests the 16 curated herbs from WFO/WCVP/NCBI/GBIF/Wikidata, EMA herbal monographs, NCCIH fact sheets, openFDA drug labels, RxNorm/ATC and PubMed with full provenance and validation. The **REST API** (Phase 3) serves plants, drugs, evidence, sources/coverage and a deterministic herb–drug **interaction check (classes A–E)** with full provenance — see [`docs/api/`](docs/api/). **Phase 4** adds the mechanism layer: 18 enzymes/transporters, drug roles from FDA's CYP/transporter table, herb effects from EU monographs, graph and path endpoints, and conservative mechanism-based class B. The web app does not use the API yet (Phase 6).
 
 ## Quick start (Docker)
 
@@ -52,7 +52,7 @@ With the database running (`docker compose up -d db`) and the backend installed 
 
 ```bash
 cd backend
-herbaguard ingest all      # ~5 minutes; fetches live data, stores raw snapshots in data/raw/
+herbaguard ingest all      # ~6 minutes; fetches live data (incl. Phase 4 mechanisms), stores raw snapshots in data/raw/
 herbaguard validate        # post-ingestion checks
 herbaguard report          # counts and data-quality issues
 ```

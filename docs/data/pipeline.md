@@ -8,13 +8,13 @@ Requires the database from Docker Compose (`docker compose up -d db`) and the ba
 
 ```bash
 cd backend
-herbaguard ingest all            # sources → taxonomy → ema → nccih → labels → pubmed (~4–5 min)
+herbaguard ingest all            # sources → taxonomy → ema → nccih → labels → pubmed → mechanisms (~5–7 min)
 herbaguard validate              # post-ingestion checks; exit code 1 on failure
 herbaguard report                # counts, latest runs, data-quality issues
 herbaguard ema-report            # per-monograph, per-section extraction table (Markdown)
 ```
 
-Individual steps: `herbaguard ingest taxonomy|ema|nccih|labels|pubmed [--herb st_johns_wort ...]`, `herbaguard ingest labels --max-pages N` (openFDA pages of 100 labels per herb; default 5).
+Individual steps: `herbaguard ingest taxonomy|ema|nccih|labels|pubmed|mechanisms [--herb st_johns_wort ...]`, `herbaguard ingest mechanisms --fda-html-file page.html` (Phase 4; a browser-saved copy of the FDA CYP/transporter page if fda.gov refuses automated requests), `herbaguard ingest labels --max-pages N` (openFDA pages of 100 labels per herb; default 5).
 
 Optional environment: `NCBI_API_KEY` (raises the E-utilities limit from 3 to 10 requests/s), `HERBAGUARD_CONTACT_EMAIL` (sent as `From`).
 

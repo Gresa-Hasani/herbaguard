@@ -7,6 +7,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from herbaguard.api.schemas.mechanism_core import MechanismPathOut
 from herbaguard.api.schemas.provenance import EvidenceRef, EvidenceTypeInfo, ProvenanceOut
 from herbaguard.domain.enums import InteractionClass, StatementType
 from herbaguard.domain.interactions import Finding
@@ -217,6 +218,11 @@ class DrugCheckResult(BaseModel):
     context_statements: list[StatementOut]
     sources_searched: list[SourceSearched]
     related_literature: dict[str, object]
+    mechanism_paths: list[MechanismPathOut] = Field(
+        default_factory=list,
+        description="Herb → enzyme/transporter ← drug paths (Phase 4). Only paths with "
+        "qualifies_for_class_b can produce class B, and only when no documented statement applies.",
+    )
 
 
 class InteractionCheckRequest(BaseModel):

@@ -14,6 +14,7 @@ They are not invented data. Changes made before saving:
 | `openfda_label_sertraline.json` | openFDA drug label API | one label; only `set_id`, `id`, `version`, `effective_time`, `drug_interactions` and four `openfda` fields kept |
 | `pubmed_efetch_2.xml` | NCBI E-utilities efetch | **abstract text replaced** with a placeholder (publisher copyright); all metadata unchanged |
 | `nccih_st-johns-wort_main.html` | NCCIH (U.S. government work) | only the page's `<main>` element kept |
+| `fda_cyp_transporter_table_excerpt.html` | FDA "Examples of Drugs that Interact with CYP Enzymes and Transporter Systems" (U.S. government work), captured 2026-11-02 in a browser (Phase 4) | Table 1 header and 33 of 245 rows (all rows unchanged, chosen to cover every column, footnote markers, aliases, duplicates and non-drug rows), Tables 2–3 and all footnotes, the "Content current as of" element; page chrome removed |
 
 Synthetic fixtures (hand-written layouts and spreadsheets) live in the tests themselves and are
 labelled as synthetic there.

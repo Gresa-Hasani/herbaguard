@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -18,7 +19,7 @@ from herbaguard.ingestion.sources import SOURCES
 
 app = typer.Typer(help="HerbaGuard data pipeline.", no_args_is_help=True)
 ingest_app = typer.Typer(
-    help="Run ingestion pipelines (order: sources, taxonomy, ema, nccih, labels, pubmed)."
+    help="Run ingestion pipelines (order: sources, taxonomy, ema, nccih, labels, pubmed, mechanisms)."
 )
 app.add_typer(ingest_app, name="ingest")
 
@@ -129,6 +130,32 @@ def ingest_pubmed(herb: HerbOption = None) -> None:
     _run("pubmed", lambda ctx: pubmed.run(ctx, herb), {"herbs": herb})
 
 
+@ingest_app.command("mechanisms")
+def ingest_mechanisms(
+    herb: HerbOption = None,
+    fda_html_file: Annotated[
+        Path | None,
+        typer.Option(
+            help="Saved copy of the FDA CYP/transporter page, if fda.gov refuses automated requests.",
+            exists=True,
+            dir_okay=False,
+        ),
+    ] = None,
+) -> None:
+    """Enzymes/transporters, herb effects from EU monographs (stored in the ema step) and drug
+    roles from the FDA CYP/transporter table. Run after taxonomy and ema."""
+    from herbaguard.ingestion.pipelines import mechanisms
+
+    _run(
+        "ema_hmpc", lambda ctx: mechanisms.run_ema(ctx, herb), {"step": "mechanisms", "herbs": herb}
+    )
+    _run(
+        "fda_cyp_table",
+        lambda ctx: mechanisms.run_fda(ctx, fda_html_file),
+        {"html_file": fda_html_file.name if fda_html_file else None},
+    )
+
+
 @ingest_app.command("all")
 def ingest_all(herb: HerbOption = None, max_pages: int = 5) -> None:
     """Run every pipeline in dependency order."""
@@ -138,6 +165,7 @@ def ingest_all(herb: HerbOption = None, max_pages: int = 5) -> None:
     ingest_nccih(herb)
     ingest_labels(herb, max_pages)
     ingest_pubmed(herb)
+    ingest_mechanisms(herb)
 
 
 @app.command()
@@ -165,7 +193,9 @@ def report() -> None:
         typer.echo("== Table counts")
         for table in ("source", "ingestion_run", "source_record", "provenance", "data_quality_issue", "taxon", "taxon_name",
                       "herbal_substance", "drug", "drug_class", "drug_class_membership", "evidence_item", "chunk",
-                      "herbal_substance_evidence", "indication", "interaction_assertion"):  # fmt: skip
+                      "herbal_substance_evidence", "indication", "interaction_assertion", "target",
+                      "target_modulation", "drug_target_role", "constituent",
+                      "herbal_substance_constituent"):  # fmt: skip
             count = session.execute(text(f"SELECT count(*) FROM {table}")).scalar()  # noqa: S608 - fixed names
             typer.echo(f"  {table:<28} {count}")
         typer.echo("== Latest run per source")
@@ -194,6 +224,16 @@ def report() -> None:
         ).all()
         for source, statement, count in rows:
             typer.echo(f"  {source:<16} {statement:<26} {count}")
+        typer.echo("== Mechanism edges by source")
+        rows = session.execute(
+            text(
+                "SELECT 'target_modulation', source_code, evidence_type, count(*) FROM target_modulation "
+                "GROUP BY 2,3 UNION ALL SELECT 'drug_target_role', source_code, role, count(*) "
+                "FROM drug_target_role GROUP BY 2,3 ORDER BY 1,2,3"
+            )
+        ).all()
+        for table, source, kind, count in rows:
+            typer.echo(f"  {table:<18} {source:<16} {kind:<32} {count}")
         typer.echo("== Evidence items by source and type")
         rows = session.execute(
             text(

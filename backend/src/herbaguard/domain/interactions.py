@@ -18,7 +18,9 @@ Decision order (the first rule that applies wins):
      no effect asserted).
 3. **B / potential_interaction** — authoritative interaction/precaution statements exist only for
    *part* of a class the drug belongs to (Phase 2 marker "Applies to part of the class only"),
-   or a mechanism path is supplied (Phase 4).
+   or a *qualifying* mechanism path is supplied (Phase 4: herb induces/inhibits an enzyme or
+   transporter of which the drug is a substrate; rules in ``herbaguard.domain.mechanisms``).
+   A mechanism-only result carries ``MECHANISM_CAVEAT``.
 4. **C** — only weaker statements:
    * ``uncertain_evidence`` if a source itself calls the evidence conflicting or unclear;
    * ``label_subject_not_confirmed`` if FDA label sentences with interaction or precaution
@@ -45,6 +47,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 
 from herbaguard.domain.enums import EvidenceType, InteractionClass, StatementType
+from herbaguard.domain.mechanisms import MECHANISM_CAVEAT
 
 AUTHORITATIVE = frozenset({EvidenceType.REGULATORY, EvidenceType.GOVERNMENT_SUMMARY})
 PARTIAL_CLASS_MARKER = "Applies to part of the class only"
@@ -173,12 +176,23 @@ class Statement:
 
 @dataclass(frozen=True, slots=True)
 class MechanismPath:
-    """Herb effect on an enzyme/transporter + the drug's role for it (populated from Phase 4)."""
+    """A *qualifying* mechanism path (``herbaguard.domain.mechanisms``): the herb induces or
+    inhibits an enzyme/transporter of which this drug is a substrate. Only qualifying paths are
+    passed to ``classify``; the others are shown as context by the service."""
 
     target_symbol: str
     herb_effect: str
     drug_role: str
     source: str
+    description: str | None = None  # full plain-language sentence (Phase 4)
+
+    def reason(self) -> str:
+        if self.description:
+            return self.description
+        return (
+            f"Herb {self.herb_effect} {self.target_symbol}; this drug is a "
+            f"{self.drug_role.replace('_', ' ')} of {self.target_symbol} ({self.source})."
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -301,12 +315,9 @@ def _classify(
                 "A source states this for part of a drug class this drug belongs to; whether it applies "
                 "to this drug is not stated."
             )
-        reasons += [
-            f"Herb {m.herb_effect} {m.target_symbol}; this drug is a {m.drug_role.replace('_', ' ')} of "
-            f"{m.target_symbol} ({m.source})."
-            for m in mechanisms
-        ]
-        return _result(Finding.POTENTIAL_INTERACTION, reasons, partial, statements)
+        reasons += [m.reason() for m in mechanisms]
+        extra = [MECHANISM_CAVEAT] if mechanisms and not partial else []
+        return _result(Finding.POTENTIAL_INTERACTION, reasons, partial, statements, extra)
 
     if uncertain:
         return _result(

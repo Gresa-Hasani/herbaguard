@@ -10,6 +10,7 @@ from datetime import datetime
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from herbaguard.api.schemas.mechanism_core import MechanismPathOut
 from herbaguard.api.schemas.resources import (
     ClassificationOut,
     DrugCheckResult,
@@ -21,13 +22,14 @@ from herbaguard.api.schemas.resources import (
 from herbaguard.core.config import DISCLAIMER, Settings
 from herbaguard.core.errors import AmbiguousEntityError, NotFoundError
 from herbaguard.domain.enums import EvidenceType, StatementType
-from herbaguard.domain.interactions import Classification, Statement, classify
+from herbaguard.domain.interactions import Classification, MechanismPath, Statement, classify
 from herbaguard.models import EvidenceItem, HerbalSubstanceEvidence, SourceRecord
 from herbaguard.repositories import drugs as drug_repo
 from herbaguard.repositories import evidence as evidence_repo
 from herbaguard.repositories import interactions as repo
 from herbaguard.repositories import plants as plant_repo
 from herbaguard.services import drugs as drug_service
+from herbaguard.services import mechanisms as mechanism_service
 from herbaguard.services import plants as plant_service
 from herbaguard.services.mappers import (
     STATEMENT_TYPE_NOTES,
@@ -271,6 +273,7 @@ def sources_searched(
             used_for_classification=coverage is not None,
         )
     )
+    out += _mechanism_sources(session, substance_ids)
     articles = sum(1 for _, rel in linked if rel.startswith("literature"))
     out.append(
         SourceSearched(
@@ -282,6 +285,31 @@ def sources_searched(
         )
     )
     return out
+
+
+def _mechanism_sources(session: Session, substance_ids: list[uuid.UUID]) -> list[SourceSearched]:
+    """Phase 4: the mechanism layer, reported only once it has been ingested."""
+    from herbaguard.repositories import mechanisms as mechanism_repo
+
+    table = mechanism_repo.fda_table_item(session)
+    if table is None:
+        return []
+    effects = mechanism_repo.herb_effects(session, substance_ids)
+    herb_side = sorted(
+        {f"{e.modulation.effect} {e.target.symbol} [{e.modulation.source_code}]" for e in effects}
+    )
+    return [
+        SourceSearched(
+            source_code="fda_cyp_table",
+            description=(
+                f"FDA table of drugs interacting with CYP enzymes and transporters (content current as of "
+                f"{table.document_date}); drug roles used for mechanism-based class B only. Stored effects of "
+                f"this herb on enzymes/transporters: {', '.join(herb_side) if herb_side else 'none'}."
+            ),
+            retrieved_at=_retrieved_at(session, table.id),
+            used_for_classification=True,
+        )
+    ]
 
 
 def _herb_has_sources(session: Session, substance_ids: list[uuid.UUID]) -> bool:
@@ -366,6 +394,8 @@ def check(
         drug_ok = resolution.status == "resolved" and resolution.drug is not None
         domain: list[Statement] = []
         api: dict[str, StatementOut] = {}
+        mechanisms: list[MechanismPath] = []
+        mechanism_paths: list[MechanismPathOut] = []
         if herb_ok and drug_ok:
             assert resolution.drug is not None  # noqa: S101
             drug = drug_repo.drug_by_rxcui(session, resolution.drug.rxcui)
@@ -375,11 +405,15 @@ def check(
                 session, substance_ids, drug_id=drug.id, class_codes=codes
             )
             domain, api = build_statements(session, rows, drug_matched_id=drug.id)
+            mechanisms, mechanism_paths = mechanism_service.paths_for_pair(
+                session, substance_ids, drug.id
+            )
         result = classify(
             herb_resolved=herb_ok,
             drug_resolved=drug_ok,
             herb_has_sources=has_sources,
             statements=domain,
+            mechanisms=mechanisms,
             herb_level_none_reported=none_reported,
         )
         results.append(
@@ -393,6 +427,7 @@ def check(
                     _with_role(api[i], "context") for i in result.context_statement_ids
                 ],
                 sources_searched=searched,
+                mechanism_paths=mechanism_paths,
                 related_literature={
                     "count": literature or 0,
                     "used_for_classification": False,

@@ -12,7 +12,13 @@ from datetime import datetime
 from sqlalchemy import CheckConstraint, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from herbaguard.domain.enums import DrugTargetRole, EvidenceType, ModulationEffect, TargetType
+from herbaguard.domain.enums import (
+    DrugTargetRole,
+    EvidenceType,
+    ModulationEffect,
+    Potency,
+    TargetType,
+)
 from herbaguard.models.base import Base, created_at_column, enum_check, updated_at_column, uuid_pk
 
 
@@ -98,12 +104,18 @@ class Target(Base):
 
 
 class TargetModulation(Base):
-    """Herbal substance (or constituent) induces/inhibits a target — one premise of class B."""
+    """Herbal substance (or constituent) induces/inhibits a target — one premise of class B.
+
+    Phase 4: ``evidence_item_id`` names the citable unit the statement comes from (e.g. EMA
+    monograph section 4.5 for one use category, or the FDA CYP/transporter table), and
+    ``potency`` relays the source's own strength category (FDA: strong / moderate / weak).
+    """
 
     __tablename__ = "target_modulation"
     __table_args__ = (
         enum_check("effect", ModulationEffect),
         enum_check("evidence_type", EvidenceType),
+        enum_check("potency", Potency),
         CheckConstraint(
             "(herbal_substance_id IS NOT NULL) <> (constituent_id IS NOT NULL)",
             "exactly_one_subject",
@@ -114,6 +126,7 @@ class TargetModulation(Base):
             "target_id",
             "effect",
             "source_code",
+            "evidence_item_id",
             postgresql_nulls_not_distinct=True,
         ),
     )
@@ -130,14 +143,23 @@ class TargetModulation(Base):
     evidence_type: Mapped[str] = mapped_column(String(8))  # EvidenceType value
     conditions: Mapped[str | None] = mapped_column(Text)  # e.g. dose threshold wording
     source_code: Mapped[str] = mapped_column(ForeignKey("source.code"))
+    potency: Mapped[str | None] = mapped_column(String(16))  # Potency value, as stated
+    evidence_item_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("evidence_item.id", ondelete="CASCADE"), index=True
+    )
 
 
 class DrugTargetRoleLink(Base):
-    """Drug is a substrate/inhibitor/inducer of a target — the other premise of class B."""
+    """Drug is a substrate/inhibitor/inducer of a target — the other premise of class B.
+
+    Phase 4: ``potency`` (inhibitors/inducers: strong / moderate / weak, as stated by the
+    source), ``conditions`` (source footnotes, e.g. "S-warfarin") and ``evidence_item_id``.
+    """
 
     __tablename__ = "drug_target_role"
     __table_args__ = (
         enum_check("role", DrugTargetRole),
+        enum_check("potency", Potency),
         UniqueConstraint("drug_id", "target_id", "role", "source_code"),
     )
 
@@ -148,3 +170,8 @@ class DrugTargetRoleLink(Base):
     target_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("target.id", ondelete="CASCADE"))
     role: Mapped[str] = mapped_column(String(32))
     source_code: Mapped[str] = mapped_column(ForeignKey("source.code"))
+    potency: Mapped[str | None] = mapped_column(String(16))
+    conditions: Mapped[str | None] = mapped_column(Text)
+    evidence_item_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("evidence_item.id", ondelete="CASCADE"), index=True
+    )

@@ -24,6 +24,11 @@ PROVENANCE_TABLES = (
     "indication",
     "drug",
     "drug_class",
+    # Phase 4 — mechanism layer
+    "target",
+    "target_modulation",
+    "drug_target_role",
+    "constituent",
 )
 
 
@@ -83,6 +88,10 @@ def check_provenance(session: Session) -> list[CheckResult]:
         "interaction_assertion",
         "indication",
         "drug",
+        "target",
+        "target_modulation",
+        "drug_target_role",
+        "constituent",
     ):
         orphans += _scalar(
             session,
@@ -188,6 +197,51 @@ def check_identifier_agreement(session: Session) -> CheckResult:
     )
 
 
+def check_mechanism_edges(session: Session) -> list[CheckResult]:
+    """Phase 4: every mechanism edge names its citable evidence item; EMA-derived effects quote a
+    sentence that is present in the stored monograph section; no superseded document is used."""
+    without_evidence = _scalar(
+        session,
+        "SELECT (SELECT count(*) FROM target_modulation WHERE evidence_item_id IS NULL) + "
+        "(SELECT count(*) FROM drug_target_role WHERE evidence_item_id IS NULL)",
+    )
+    superseded = _scalar(
+        session,
+        "SELECT count(*) FROM target_modulation m JOIN evidence_item e ON e.id = m.evidence_item_id "
+        "WHERE e.is_superseded",
+    )
+    rows = session.execute(
+        text(
+            "SELECT m.id, p.verbatim_excerpt, string_agg(c.text, ' ') FROM target_modulation m "
+            "JOIN provenance p ON p.entity_table = 'target_modulation' AND p.entity_id = m.id::text "
+            "JOIN chunk c ON c.evidence_item_id = m.evidence_item_id "
+            "WHERE m.source_code = 'ema_hmpc' GROUP BY m.id, p.verbatim_excerpt"
+        )
+    ).all()
+    bad = sum(
+        1
+        for _, excerpt, source in rows
+        if not excerpt or re.sub(r"\s+", " ", excerpt) not in re.sub(r"\s+", " ", source or "")
+    )
+    return [
+        CheckResult(
+            "mechanism_edges_have_evidence",
+            "fail" if without_evidence else "pass",
+            f"{without_evidence} mechanism edges without an evidence item",
+        ),
+        CheckResult(
+            "mechanism_no_superseded_evidence",
+            "fail" if superseded else "pass",
+            f"{superseded} herb effects rely on superseded documents",
+        ),
+        CheckResult(
+            "mechanism_excerpts_in_source",
+            "fail" if bad else "pass",
+            f"{len(rows) - bad}/{len(rows)} EMA effect sentences found verbatim in stored section text",
+        ),
+    ]
+
+
 def run_all(session: Session) -> list[CheckResult]:
     results = [check_curated_herbs(session)]
     results += check_provenance(session)
@@ -198,4 +252,5 @@ def run_all(session: Session) -> list[CheckResult]:
         check_ema_crosscheck(session),
         check_identifier_agreement(session),
     ]
+    results += check_mechanism_edges(session)
     return results
