@@ -1,0 +1,32 @@
+{
+ "head": {
+  "vars": [
+   "item",
+   "ipni",
+   "gbif",
+   "ncbi"
+  ]
+ },
+ "results": {
+  "bindings": [
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q158289"
+    },
+    "ipni": {
+     "type": "literal",
+     "value": "433719-1"
+    },
+    "gbif": {
+     "type": "literal",
+     "value": "3189486"
+    },
+    "ncbi": {
+     "type": "literal",
+     "value": "65561"
+    }
+   }
+  ]
+ }
+}

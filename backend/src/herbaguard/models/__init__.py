@@ -7,6 +7,7 @@ from herbaguard.models.base import Base
 from herbaguard.models.evidence import (
     Chunk,
     EvidenceItem,
+    HerbalSubstanceEvidence,
     Indication,
     InteractionAssertion,
     InteractionAssertionEvidence,
@@ -42,6 +43,7 @@ __all__ = [
     "EvidenceItem",
     "HerbalSubstance",
     "HerbalSubstanceConstituent",
+    "HerbalSubstanceEvidence",
     "Indication",
     "IngestionRun",
     "InteractionAssertion",

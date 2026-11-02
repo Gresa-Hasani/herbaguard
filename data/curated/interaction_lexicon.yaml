@@ -1,0 +1,93 @@
+# HerbaGuard interaction lexicon — drug and drug-class phrases → RxNorm / ATC.
+#
+# Authored by the HerbaGuard team (source code: herbaguard_curated) after reading the extracted
+# EMA monograph sections 4.3/4.5 of all 16 curated herbs and the NCCIH "What Do We Know About
+# Safety?" sections (retrieved 2026-11-02). `seen_in` records where each phrase occurs, so every
+# entry can be traced to real source wording.
+#
+# Rules
+#   - Drugs map to an RxNorm *ingredient* name; the pipeline resolves it via RxNav and records a
+#     data-quality issue if it does not resolve (it is never guessed).
+#   - Classes map to one or more ATC codes. Several codes are used when a phrase covers several
+#     ATC groups (e.g. "anticoagulants"); each code yields its own assertion, all quoting the same
+#     source text. The source's own wording is always stored verbatim alongside.
+#   - `unmapped` lists phrases recognised as drug references that have NO defensible ATC mapping.
+#     They are recorded as data-quality issues (lexicon_term_unmapped) instead of being forced.
+#   - Matching is case-insensitive, on word boundaries, longest phrase first.
+version: 1
+
+drugs:
+  - {name: cyclosporine, patterns: [cyclosporine, ciclosporin, cyclosporin], seen_in: [ema:st_johns_wort, nccih:st-johns-wort]}
+  - {name: everolimus, patterns: [everolimus], seen_in: [ema:st_johns_wort]}
+  - {name: sirolimus, patterns: [sirolimus], seen_in: [ema:st_johns_wort]}
+  - {name: tacrolimus, patterns: [tacrolimus], seen_in: [ema:st_johns_wort, ema:cranberry]}
+  - {name: fosamprenavir, patterns: [fosamprenavir], seen_in: [ema:st_johns_wort]}
+  - {name: indinavir, patterns: [indinavir], seen_in: [ema:st_johns_wort, nccih:st-johns-wort]}
+  - {name: irinotecan, patterns: [irinotecan], seen_in: [ema:st_johns_wort, nccih:st-johns-wort]}
+  - {name: imatinib, patterns: [imatinib], seen_in: [ema:st_johns_wort, nccih:st-johns-wort]}
+  - {name: amitriptyline, patterns: [amitriptyline], seen_in: [ema:st_johns_wort, nccih:st-johns-wort]}
+  - {name: fexofenadine, patterns: [fexofenadine], seen_in: [ema:st_johns_wort]}
+  - {name: alprazolam, patterns: [alprazolam], seen_in: [ema:st_johns_wort]}
+  - {name: diazepam, patterns: [diazepam], seen_in: [ema:st_johns_wort]}
+  - {name: midazolam, patterns: [midazolam], seen_in: [ema:st_johns_wort, ema:liquorice]}
+  - {name: methadone, patterns: [methadone], seen_in: [ema:st_johns_wort]}
+  - {name: simvastatin, patterns: [simvastatin], seen_in: [ema:st_johns_wort, nccih:st-johns-wort]}
+  - {name: digoxin, patterns: [digoxin], seen_in: [ema:st_johns_wort, nccih:st-johns-wort]}
+  - {name: finasteride, patterns: [finasteride], seen_in: [ema:st_johns_wort]}
+  - {name: sertraline, patterns: [sertraline], seen_in: [ema:st_johns_wort]}
+  - {name: paroxetine, patterns: [paroxetine], seen_in: [ema:st_johns_wort]}
+  - {name: buspirone, patterns: [buspirone], seen_in: [ema:st_johns_wort]}
+  - {name: saquinavir, patterns: [saquinavir], seen_in: [ema:garlic]}
+  - {name: ritonavir, patterns: [ritonavir], seen_in: [ema:garlic]}
+  - {name: phenprocoumon, patterns: [phenprocoumon], seen_in: [ema:ginkgo]}
+  - {name: warfarin, patterns: [warfarin], seen_in: [ema:ginkgo, ema:saw_palmetto, ema:cranberry, nccih:ginkgo, nccih:cranberry, nccih:st-johns-wort]}
+  - {name: clopidogrel, patterns: [clopidogrel], seen_in: [ema:ginkgo]}
+  - {name: aspirin, patterns: [acetylsalicylic acid, aspirin], seen_in: [ema:ginkgo, nccih:garlic]}
+  - {name: talinolol, patterns: [talinolol], seen_in: [ema:ginkgo]}            # not marketed in the US; may not resolve in RxNorm
+  - {name: dabigatran, patterns: [dabigatran etexilate, dabigatran], seen_in: [ema:ginkgo]}
+  - {name: nifedipine, patterns: [nifedipine], seen_in: [ema:ginkgo]}
+  - {name: efavirenz, patterns: [efavirenz], seen_in: [ema:ginkgo]}
+  - {name: omeprazole, patterns: [omeprazole], seen_in: [ema:liquorice]}
+  - {name: bupropion, patterns: [bupropion], seen_in: [nccih:st-johns-wort]}
+  - {name: phenytoin, patterns: [phenytoin], seen_in: [nccih:st-johns-wort]}
+  - {name: carbamazepine, patterns: [carbamazepine], seen_in: [nccih:st-johns-wort]}
+  - {name: ivabradine, patterns: [ivabradine], seen_in: [nccih:st-johns-wort]}
+  - {name: nevirapine, patterns: [nevirapine], seen_in: [nccih:st-johns-wort]}
+  - {name: docetaxel, patterns: [docetaxel], seen_in: [nccih:st-johns-wort]}
+  - {name: nadolol, patterns: [nadolol], seen_in: [nccih:green-tea]}
+  - {name: atorvastatin, patterns: [atorvastatin], seen_in: [nccih:green-tea]}
+  - {name: raloxifene, patterns: [raloxifene], seen_in: [nccih:green-tea]}
+
+classes:
+  - {label: coumarin-type anticoagulants, atc: [B01AA], patterns: [coumarin-type anticoagulants, coumarin anticoagulants, coumarin derivatives], seen_in: [ema:st_johns_wort, ema:ginkgo]}
+  - {label: anticoagulants, atc: [B01AA, B01AB, B01AE, B01AF], patterns: [anticoagulants, anticoagulant drugs, anticoagulant], seen_in: [ema:ginkgo, nccih:ginkgo, nccih:garlic, nccih:cranberry]}
+  - {label: oral anticoagulants, atc: [B01AA, B01AE, B01AF], patterns: [oral anticoagulation therapy, oral anticoagulants], seen_in: [ema:garlic]}
+  - {label: blood thinners (lay term), atc: [B01AA, B01AB, B01AE, B01AF, B01AC], patterns: [blood thinner, blood thinners], seen_in: [nccih:st-johns-wort, nccih:cranberry]}
+  - {label: antiplatelet agents, atc: [B01AC], patterns: [anti-platelet therapy, antiplatelet therapy, antiplatelet drugs, anti-platelet drugs], seen_in: [ema:garlic, ema:ginkgo]}
+  - {label: NSAIDs, atc: [M01A], patterns: [non-steroidal anti-inflammatory drugs, nonsteroidal anti-inflammatory drugs, NSAIDs], seen_in: [ema:ginkgo]}
+  - {label: HIV protease inhibitors, atc: [J05AE], patterns: [protease inhibitors], seen_in: [ema:st_johns_wort]}
+  - {label: nucleoside reverse transcriptase inhibitors, atc: [J05AF], patterns: [nucleoside reverse transcriptase inhibitors], seen_in: [ema:st_johns_wort]}
+  - {label: HIV drugs (lay term), atc: [J05AE, J05AF, J05AG, J05AJ], patterns: [HIV drugs, HIV medicines, HIV medications], seen_in: [nccih:st-johns-wort]}
+  - {label: antiretrovirals, atc: [J05AE, J05AF, J05AG, J05AJ], patterns: [antiretroviral regime, antiretroviral therapy, antiretrovirals], seen_in: [ema:garlic]}
+  - {label: cytostatic / antineoplastic agents, atc: [L01], patterns: [cytostatic agents, cancer medications, cancer drugs], seen_in: [ema:st_johns_wort, nccih:st-johns-wort]}
+  - {label: hormonal contraceptives, atc: [G03A], patterns: [hormonal contraceptives, birth control pills, oral contraceptives], seen_in: [ema:st_johns_wort, nccih:st-johns-wort]}
+  - {label: antidepressants, atc: [N06A], patterns: [antidepressants], seen_in: [ema:st_johns_wort, nccih:st-johns-wort]}
+  - {label: SSRIs, atc: [N06AB], patterns: [serotonin reuptake inhibitors, serotonin-uptake inhibitors, selective serotonin reuptake inhibitors, SSRIs], seen_in: [ema:st_johns_wort]}
+  - {label: anaesthetics, atc: [N01], patterns: [products used during general and regional anaesthesia], seen_in: [ema:st_johns_wort]}
+  - {label: antiepileptics, atc: [N03A], patterns: [drugs used to prevent seizures, antiepileptic drugs, anticonvulsants], seen_in: [nccih:st-johns-wort]}
+  - {label: statins, atc: [C10AA], patterns: [statins], seen_in: [nccih:st-johns-wort]}
+  - {label: antihypertensives, atc: [C02], patterns: [antihypertensive action of prescribed medications, antihypertensive medications, antihypertensives], seen_in: [ema:liquorice]}
+  - {label: diuretics, atc: [C03], patterns: [diuretics], seen_in: [ema:liquorice, ema:senna]}
+  - {label: cardiac glycosides, atc: [C01A], patterns: [cardiac glycosides], seen_in: [ema:liquorice, ema:senna]}
+  - {label: antiarrhythmics, atc: [C01B], patterns: [antiarrhythmic medicinal products, antiarrhythmic drugs, antiarrhythmics], seen_in: [ema:senna]}
+  - {label: systemic corticosteroids, atc: [H02], patterns: [adrenocorticosteroids, corticosteroids], seen_in: [ema:liquorice, ema:senna, nccih:licorice-root]}
+  - {label: stimulant (contact) laxatives, atc: [A06AB], patterns: [stimulant laxatives], seen_in: [ema:liquorice]}
+  - {label: hypnotics and sedatives, atc: [N05C], patterns: [sedative substances, sedatives], seen_in: [ema:green_tea]}
+  - {label: beta blockers, atc: [C07], patterns: [beta-blocker, beta-blockers, beta blockers], seen_in: [nccih:green-tea]}
+
+unmapped:
+  # Recognised drug references without a defensible single ATC mapping.
+  - {phrase: sympathomimetic drugs, reason: "Sympathomimetics span several ATC groups (C01CA, R01BA, R03C, ...); the monograph does not specify which.", seen_in: [ema:green_tea]}
+  - {phrase: heart medications, reason: "Too unspecific.", seen_in: [nccih:st-johns-wort]}
+  - {phrase: liquorice root, reason: "A herbal substance, not a drug; herb–herb interactions are outside the drug lexicon.", seen_in: [ema:senna]}
+  - {phrase: medications which may aggravate electrolyte imbalance, reason: "Functional description, not a drug class.", seen_in: [ema:liquorice]}

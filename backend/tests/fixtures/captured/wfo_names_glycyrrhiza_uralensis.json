@@ -1,0 +1,122 @@
+{
+ "count": 2,
+ "offset": 0,
+ "limit": 50,
+ "results": [
+  {
+   "citation": "",
+   "full_name": "Glycyrrhiza uralensis",
+   "full_name_no_authors": "Glycyrrhiza uralensis",
+   "full_name_plain": "Glycyrrhiza uralensis Fisch.",
+   "genus_string": "Glycyrrhiza",
+   "hybrid_taxon": null,
+   "ipni": null,
+   "name": "uralensis",
+   "status": "valid",
+   "parent_id": null,
+   "year": null,
+   "rank": "species",
+   "role": "unplaced",
+   "species_string": null,
+   "id": 186028,
+   "code": null,
+   "species": null,
+   "genus": null,
+   "tribe": null,
+   "family": null,
+   "order": null,
+   "phylum": null,
+   "subkingdom": null,
+   "kingdom": null,
+   "section": null,
+   "subgenus": null,
+   "subspecies": null,
+   "variety": null,
+   "subtribe": null,
+   "form": null,
+   "suborder": null,
+   "subclass": null,
+   "classification": null,
+   "subfamily": null,
+   "superorder": null,
+   "series": null,
+   "subsection": null,
+   "supertribe": null,
+   "subvariety": null,
+   "subseries": null,
+   "subform": null,
+   "prole": null
+  },
+  {
+   "citation": "Prodr. 2: 248 (1825)",
+   "full_name": "Glycyrrhiza uralensis",
+   "full_name_no_authors": "Glycyrrhiza uralensis",
+   "full_name_plain": "Glycyrrhiza uralensis Fisch. ex DC.",
+   "genus_string": "Glycyrrhiza",
+   "hybrid_taxon": false,
+   "ipni": "496974-1",
+   "name": "uralensis",
+   "status": "valid",
+   "parent_id": "4000015856",
+   "year": 1825,
+   "rank": "species",
+   "role": "accepted",
+   "species_string": null,
+   "id": 1053609,
+   "code": {
+    "name": "Code",
+    "id": 1
+   },
+   "species": {
+    "name": "uralensis",
+    "id": 110104
+   },
+   "genus": {
+    "name": "Glycyrrhiza",
+    "id": 6202
+   },
+   "tribe": null,
+   "family": {
+    "name": "Fabaceae",
+    "id": 255
+   },
+   "order": {
+    "name": "Fabales",
+    "id": 57
+   },
+   "phylum": {
+    "name": "Angiosperms",
+    "id": 1
+   },
+   "subkingdom": {
+    "name": "Pteridobiotina",
+    "id": 2
+   },
+   "kingdom": {
+    "name": "Plantae",
+    "id": 1
+   },
+   "section": null,
+   "subgenus": null,
+   "subspecies": null,
+   "variety": null,
+   "subtribe": null,
+   "form": null,
+   "suborder": null,
+   "subclass": null,
+   "classification": null,
+   "subfamily": {
+    "name": "Papilionoideae",
+    "id": 103
+   },
+   "superorder": null,
+   "series": null,
+   "subsection": null,
+   "supertribe": null,
+   "subvariety": null,
+   "subseries": null,
+   "subform": null,
+   "prole": null
+  }
+ ]
+}

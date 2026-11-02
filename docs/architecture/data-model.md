@@ -1,6 +1,6 @@
 # Data Model — Schema v1
 
-**Status:** Implemented in `backend/src/herbaguard/models/` and migration `backend/alembic/versions/0001_initial_schema_v1.py`. Tables are empty until Phase 2 ingestion.
+**Status:** Implemented in `backend/src/herbaguard/models/`, migrations `0001_initial_schema_v1` (Phase 1) and `0002_phase_2_substance_evidence_links_` (Phase 2, see §6). Populated by the Phase 2 pipeline ([../data/pipeline.md](../data/pipeline.md)).
 
 The schema follows four rules from the Phase 0 research (`docs/research/scientific-and-ethical-considerations.md`):
 
@@ -98,3 +98,14 @@ The schema follows four rules from the Phase 0 research (`docs/research/scientif
 - `provenance.entity_id` has no foreign key (polymorphic). Orphan detection is a Phase 2 data-validation test.
 - Product-level data (brands, extract ratios, hyperforin content) is not modelled; conditions are kept as text.
 - Multi-species substances (e.g. *Crataegus* spp.) need one `herbal_substance` per taxon or a later many-to-many; to be decided during Phase 2 ingestion of hawthorn.
+
+## 6. Changes in migration 0002 (Phase 2)
+
+| Change | Why |
+|---|---|
+| New table `herbal_substance_evidence` (substance, evidence item, relation ∈ monograph / fact_sheet / label_mention / literature_interaction / literature_clinical) | Literature and fact sheets are *about* a substance without stating an interaction; they need a link of their own |
+| `interaction_assertion.statement_type` ∈ interaction / precaution / no_interaction_reported / uncertain / unclassified | What the source sentence says (deterministic cues); Phase 3 uses it to compute classes |
+| `interaction_assertion.subject_label_verbatim` | The source's own wording for the herb (labels often say just "ginseng") |
+| Evidence types `REV` (narrative review) and `OTHER` | PubMed records that are neither primary studies nor systematic reviews |
+
+The downgrade of 0002 refuses to run when rows use `REV`/`OTHER` (data would violate the 0001 vocabulary); it never deletes evidence silently.

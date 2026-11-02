@@ -1,0 +1,41 @@
+{
+ "count": 1,
+ "offset": 0,
+ "limit": 10,
+ "results": [
+  {
+   "plant_name_id": 2620567,
+   "ipni_id": "316204-2",
+   "taxon_rank": "Species",
+   "taxon_status": "Accepted",
+   "family": "Ranunculaceae",
+   "genus_hybrid": null,
+   "genus": "Actaea",
+   "species_hybrid": null,
+   "species": "racemosa",
+   "infraspecific_rank": null,
+   "infraspecies": null,
+   "parenthetical_author": null,
+   "primary_author": "L.",
+   "publication_author": null,
+   "place_of_publication": "Sp. Pl.",
+   "volume_and_page": ": 504",
+   "first_published": "(1753)",
+   "nomenclatural_remarks": null,
+   "geographic_area": "SE. Canada to NC. & E. U.S.A.",
+   "lifeform_description": "perennial",
+   "climate_description": "temperate",
+   "taxon_name": "Actaea racemosa",
+   "taxon_authors": "L.",
+   "accepted_plant_name_id": 2620567,
+   "basionym_plant_name_id": null,
+   "replaced_synonym_author": null,
+   "homotypic_synonym": null,
+   "parent_plant_name_id": 2620495,
+   "powo_id": "316204-2",
+   "hybrid_formula": null,
+   "reviewed": false,
+   "tax_id": 64040
+  }
+ ]
+}

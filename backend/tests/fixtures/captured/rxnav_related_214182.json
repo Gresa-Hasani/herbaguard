@@ -1,0 +1,44 @@
+{
+ "relatedGroup": {
+  "rxcui": null,
+  "conceptGroup": [
+   {
+    "tty": "IN",
+    "conceptProperties": [
+     {
+      "rxcui": "161",
+      "name": "acetaminophen",
+      "synonym": "",
+      "tty": "IN",
+      "language": "ENG",
+      "suppress": "N",
+      "umlscui": ""
+     },
+     {
+      "rxcui": "5489",
+      "name": "hydrocodone",
+      "synonym": "",
+      "tty": "IN",
+      "language": "ENG",
+      "suppress": "N",
+      "umlscui": ""
+     }
+    ]
+   },
+   {
+    "tty": "MIN",
+    "conceptProperties": [
+     {
+      "rxcui": "214182",
+      "name": "acetaminophen / hydrocodone",
+      "synonym": "",
+      "tty": "MIN",
+      "language": "ENG",
+      "suppress": "N",
+      "umlscui": ""
+     }
+    ]
+   }
+  ]
+ }
+}

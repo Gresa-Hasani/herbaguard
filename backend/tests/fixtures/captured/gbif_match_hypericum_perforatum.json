@@ -1,0 +1,23 @@
+{
+ "usageKey": 3189486,
+ "scientificName": "Hypericum perforatum L.",
+ "canonicalName": "Hypericum perforatum",
+ "rank": "SPECIES",
+ "status": "ACCEPTED",
+ "confidence": 100,
+ "matchType": "EXACT",
+ "kingdom": "Plantae",
+ "phylum": "Tracheophyta",
+ "order": "Malpighiales",
+ "family": "Hypericaceae",
+ "genus": "Hypericum",
+ "species": "Hypericum perforatum",
+ "kingdomKey": 6,
+ "phylumKey": 7707728,
+ "classKey": 220,
+ "orderKey": 1414,
+ "familyKey": 4900406,
+ "genusKey": 3189452,
+ "speciesKey": 3189486,
+ "class": "Magnoliopsida"
+}

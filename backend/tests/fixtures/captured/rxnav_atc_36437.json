@@ -1,0 +1,20 @@
+{
+ "rxclassDrugInfoList": {
+  "rxclassDrugInfo": [
+   {
+    "minConcept": {
+     "rxcui": "36437",
+     "name": "sertraline",
+     "tty": "IN"
+    },
+    "rxclassMinConceptItem": {
+     "classId": "N06AB",
+     "className": "Selective serotonin reuptake inhibitors",
+     "classType": "ATC1-4"
+    },
+    "rela": "",
+    "relaSource": "ATC"
+   }
+  ]
+ }
+}

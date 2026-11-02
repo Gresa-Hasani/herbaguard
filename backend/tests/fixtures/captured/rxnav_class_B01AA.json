@@ -1,0 +1,11 @@
+{
+ "rxclassMinConceptList": {
+  "rxclassMinConcept": [
+   {
+    "classId": "B01AA",
+    "className": "Vitamin K antagonists",
+    "classType": "ATC1-4"
+   }
+  ]
+ }
+}

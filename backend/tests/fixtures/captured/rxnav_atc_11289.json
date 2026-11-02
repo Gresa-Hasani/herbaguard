@@ -1,0 +1,20 @@
+{
+ "rxclassDrugInfoList": {
+  "rxclassDrugInfo": [
+   {
+    "minConcept": {
+     "rxcui": "11289",
+     "name": "warfarin",
+     "tty": "IN"
+    },
+    "rxclassMinConceptItem": {
+     "classId": "B01AA",
+     "className": "Vitamin K antagonists",
+     "classType": "ATC1-4"
+    },
+    "rela": "",
+    "relaSource": "ATC"
+   }
+  ]
+ }
+}

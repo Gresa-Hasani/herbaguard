@@ -1,0 +1,41 @@
+{
+ "count": 1,
+ "offset": 0,
+ "limit": 20,
+ "results": [
+  {
+   "plant_name_id": 2720998,
+   "ipni_id": "1210182-2",
+   "taxon_rank": "Species",
+   "taxon_status": "Synonym",
+   "family": "Ranunculaceae",
+   "genus_hybrid": null,
+   "genus": "Cimicifuga",
+   "species_hybrid": null,
+   "species": "racemosa",
+   "infraspecific_rank": null,
+   "infraspecies": null,
+   "parenthetical_author": "L.",
+   "primary_author": "Nutt.",
+   "publication_author": null,
+   "place_of_publication": "Gen. N. Amer. Pl.",
+   "volume_and_page": " 2: 15",
+   "first_published": "(1818)",
+   "nomenclatural_remarks": null,
+   "geographic_area": null,
+   "lifeform_description": "perennial",
+   "climate_description": "temperate",
+   "taxon_name": "Cimicifuga racemosa",
+   "taxon_authors": "(L.) Nutt.",
+   "accepted_plant_name_id": 2620567,
+   "basionym_plant_name_id": 2620567,
+   "replaced_synonym_author": null,
+   "homotypic_synonym": true,
+   "parent_plant_name_id": null,
+   "powo_id": "1210182-2",
+   "hybrid_formula": null,
+   "reviewed": false,
+   "tax_id": 64040
+  }
+ ]
+}

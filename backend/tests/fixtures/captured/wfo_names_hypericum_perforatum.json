@@ -1,0 +1,75 @@
+{
+ "count": 1,
+ "offset": 0,
+ "limit": 50,
+ "results": [
+  {
+   "citation": "Sp. Pl. : 785 (1753)",
+   "full_name": "Hypericum perforatum",
+   "full_name_no_authors": "Hypericum perforatum",
+   "full_name_plain": "Hypericum perforatum L.",
+   "genus_string": "Hypericum",
+   "hybrid_taxon": false,
+   "ipni": "433719-1",
+   "name": "perforatum",
+   "status": "valid",
+   "parent_id": "4000018759",
+   "year": 1753,
+   "rank": "species",
+   "role": "accepted",
+   "species_string": null,
+   "id": 728093,
+   "code": {
+    "name": "Code",
+    "id": 1
+   },
+   "species": {
+    "name": "perforatum",
+    "id": 78260
+   },
+   "genus": {
+    "name": "Hypericum",
+    "id": 7391
+   },
+   "tribe": null,
+   "family": {
+    "name": "Hypericaceae",
+    "id": 332
+   },
+   "order": {
+    "name": "Malpighiales",
+    "id": 95
+   },
+   "phylum": {
+    "name": "Angiosperms",
+    "id": 1
+   },
+   "subkingdom": {
+    "name": "Pteridobiotina",
+    "id": 2
+   },
+   "kingdom": {
+    "name": "Plantae",
+    "id": 1
+   },
+   "section": null,
+   "subgenus": null,
+   "subspecies": null,
+   "variety": null,
+   "subtribe": null,
+   "form": null,
+   "suborder": null,
+   "subclass": null,
+   "classification": null,
+   "subfamily": null,
+   "superorder": null,
+   "series": null,
+   "subsection": null,
+   "supertribe": null,
+   "subvariety": null,
+   "subseries": null,
+   "subform": null,
+   "prole": null
+  }
+ ]
+}

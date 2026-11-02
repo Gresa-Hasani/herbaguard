@@ -65,3 +65,23 @@ Short records of decisions that shape HerbaGuard. Status values: *Accepted*, *Su
 - **Status:** Accepted (Phase 1), revisit if the user installs `uv`.
 - **Decision:** `pyproject.toml` (hatchling) with `pip install -e ".[dev]"`. No lockfile yet; dependency ranges are bounded by major version.
 - **Consequences:** Builds are less reproducible than with a lockfile — listed as a known issue.
+
+## ADR-011 — Ship missing TLS intermediate certificates instead of disabling verification
+
+- **Status:** Accepted (Phase 2)
+- **Context:** `*.ethcstwin.di.uoa.gr:65000` and `list.worldfloraonline.org` send only their leaf certificate. Windows `curl` fetches the missing intermediate itself, Python/OpenSSL (and therefore CI and Docker) do not.
+- **Decision:** Ship the two public intermediate certificates in `backend/src/herbaguard/ingestion/certs/` (source URL, validity and SHA-256 fingerprint in each file), after verifying that each chains to a root already in `certifi`. Load them in addition to `certifi`. TLS verification is never disabled.
+- **Consequences:** The intermediates expire 2027 (GeoTrust) and 2037 (HARICA) and must be refreshed if the servers change CA. The organizers could fix the server configuration; this is reported in the Phase 2 report.
+
+## ADR-012 — Deterministic, typed interaction statements from a curated lexicon
+
+- **Status:** Accepted (Phase 2)
+- **Decision:** Interaction statements are extracted with a committed lexicon (`data/curated/interaction_lexicon.yaml`) and deterministic sentence rules, not with an LLM or a general NER model. Each statement keeps the verbatim sentence, the source's own drug/herb wording, conditions, mechanism sentence and severity wording, and gets a `statement_type` (`interaction`, `precaution`, `no_interaction_reported`, `uncertain`, `unclassified`).
+- **Reason:** Reproducibility and auditability for a safety-relevant output; every lexicon entry records the source wording that motivated it.
+- **Consequences:** Recall is limited to lexicon terms (unmapped terms are logged, not lost). Phase 3 computes interaction classes from these typed statements.
+
+## ADR-013 — Independent verification of PDF extraction
+
+- **Status:** Accepted (Phase 2)
+- **Decision:** EMA monograph text extracted with pdfplumber (word coordinates) is cross-checked against PDFium (pypdfium2), per section and per use-category column, on recall, precision and token-order similarity. Results are stored with each document and checked by `herbaguard validate`.
+- **Consequences:** Column mixing or lost text in future monograph layouts is detected automatically instead of silently degrading interaction data.

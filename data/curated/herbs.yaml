@@ -1,0 +1,191 @@
+# HerbaGuard curated MVP herb set (docs/research/mvp-scope.md §4.1).
+#
+# Authored by the HerbaGuard team; committed to the repository (source code: herbaguard_curated).
+# Every value below was checked against the live source on 2026-11-02:
+#   - ema_latin_name: exact "Latin name" in the EMA herbal inventory spreadsheet (Combination = No)
+#   - taxa: accepted names; each resolved to exactly one accepted WFO record (wfo_id noted)
+#   - ema_botanical_names: botanical names as EMA lists them (may be synonyms of `taxa`); the
+#     pipeline must resolve each to one of `taxa`, otherwise it records a data-quality issue
+#   - nccih_slug: https://www.nccih.nih.gov/health/<slug> returned HTTP 200 (senna: no page)
+#   - pubmed_mesh: MeSH descriptor exists (PubMed count > 0)
+#   - openfda_terms: phrases searched in openFDA drug-label interaction-related sections
+#   - openfda_exclude: phrases that mean a *different* plant and must not be attributed here
+version: 1
+herbs:
+  - key: st_johns_wort
+    common_name: St John's wort
+    ema_latin_name: Hyperici herba
+    plant_part: herba
+    taxa: [Hypericum perforatum]                  # wfo-0000728093
+    ema_botanical_names: [Hypericum perforatum L.]
+    nccih_slug: st-johns-wort
+    pubmed_mesh: Hypericum
+    openfda_terms: ["St. John's Wort", "St John's Wort", "Hypericum perforatum"]
+    openfda_exclude: []
+
+  - key: garlic
+    common_name: Garlic
+    ema_latin_name: Allii sativi bulbus
+    plant_part: bulbus
+    taxa: [Allium sativum]                        # wfo-0000757248
+    ema_botanical_names: [Allium sativum L.]
+    nccih_slug: garlic
+    pubmed_mesh: Garlic
+    openfda_terms: [garlic]
+    openfda_exclude: []
+
+  - key: echinacea
+    common_name: Purple coneflower (Echinacea)
+    ema_latin_name: Echinaceae purpureae herba
+    plant_part: herba
+    taxa: [Echinacea purpurea]                    # wfo-0000036347
+    ema_botanical_names: [Echinacea purpurea (L.) Moench]
+    nccih_slug: echinacea
+    pubmed_mesh: Echinacea
+    openfda_terms: [echinacea]
+    openfda_exclude: []
+
+  - key: ginseng
+    common_name: Ginseng (Asian ginseng)
+    ema_latin_name: Ginseng radix
+    plant_part: radix
+    taxa: [Panax ginseng]                         # wfo-0000263606
+    ema_botanical_names: [Panax ginseng C.A.Mey.]
+    nccih_slug: asian-ginseng
+    pubmed_mesh: Panax
+    openfda_terms: [ginseng]
+    # "Siberian ginseng" is Eleutherococcus senticosus (wfo-0000948117); "American ginseng" is
+    # Panax quinquefolius. Neither is the EMA substance.
+    openfda_exclude: [siberian ginseng, eleuthero, american ginseng]
+
+  - key: valerian
+    common_name: Valerian
+    ema_latin_name: Valerianae radix
+    plant_part: radix
+    taxa: [Valeriana officinalis]                 # wfo-0000426953
+    ema_botanical_names: [Valeriana officinalis L.]
+    nccih_slug: valerian
+    pubmed_mesh: Valerian
+    openfda_terms: [valerian]
+    openfda_exclude: []
+
+  - key: black_cohosh
+    common_name: Black cohosh
+    ema_latin_name: Cimicifugae rhizoma
+    plant_part: rhizoma
+    taxa: [Actaea racemosa]                       # wfo-0000519114 (EMA name Cimicifuga racemosa is a synonym)
+    ema_botanical_names: [Cimicifuga racemosa (L.) Nutt.]
+    nccih_slug: black-cohosh
+    pubmed_mesh: Cimicifuga
+    openfda_terms: [black cohosh, cimicifuga]
+    openfda_exclude: []
+
+  - key: liquorice
+    common_name: Liquorice
+    ema_latin_name: Liquiritiae radix
+    plant_part: radix
+    taxa: [Glycyrrhiza glabra, Glycyrrhiza inflata, Glycyrrhiza uralensis]
+    ema_botanical_names: [Glycyrrhiza glabra L., Glycyrrhiza inflata Bat., Glycyrrhiza uralensis Fisch.]
+    nccih_slug: licorice-root
+    pubmed_mesh: Glycyrrhiza
+    openfda_terms: [licorice, liquorice, glycyrrhiza]
+    openfda_exclude: []
+
+  - key: turmeric
+    common_name: Turmeric
+    ema_latin_name: Curcumae longae rhizoma
+    plant_part: rhizoma
+    taxa: [Curcuma longa]                         # wfo-0000365771
+    ema_botanical_names: [Curcuma longa L.]
+    nccih_slug: turmeric
+    pubmed_mesh: Curcuma
+    openfda_terms: [turmeric]
+    openfda_exclude: []
+
+  - key: milk_thistle
+    common_name: Milk thistle
+    ema_latin_name: Silybi mariani fructus
+    plant_part: fructus
+    taxa: [Silybum marianum]                      # wfo-0000014591
+    ema_botanical_names: [Silybum marianum (L.) Gaertn.]
+    nccih_slug: milk-thistle
+    pubmed_mesh: Silybum marianum
+    openfda_terms: [milk thistle, silybum]
+    openfda_exclude: []
+
+  - key: saw_palmetto
+    common_name: Saw palmetto
+    ema_latin_name: Sabalis serrulatae fructus
+    plant_part: fructus
+    taxa: [Serenoa repens]                        # wfo-0000309573
+    ema_botanical_names: [Serenoa repens (W.Bartram) Small, Sabal serrulata (Michx.) Schult.f.]
+    nccih_slug: saw-palmetto
+    pubmed_mesh: Serenoa
+    openfda_terms: [saw palmetto]
+    openfda_exclude: []
+
+  - key: ginger
+    common_name: Ginger
+    ema_latin_name: Zingiberis rhizoma
+    plant_part: rhizoma
+    taxa: [Zingiber officinale]                   # wfo-0000617397
+    ema_botanical_names: [Zingiber officinale Roscoe]
+    nccih_slug: ginger
+    pubmed_mesh: Zingiber officinale
+    openfda_terms: [ginger]
+    openfda_exclude: []
+
+  - key: green_tea
+    common_name: Green tea
+    ema_latin_name: Camelliae sinensis non fermentatum folium
+    plant_part: folium
+    taxa: [Camellia sinensis]                     # wfo-0000582676
+    ema_botanical_names: [Camellia sinensis (L.) Kuntze]
+    nccih_slug: green-tea
+    pubmed_mesh: Camellia sinensis
+    openfda_terms: [green tea]
+    openfda_exclude: []
+
+  - key: cranberry
+    common_name: Cranberry
+    ema_latin_name: Vaccinii macrocarpi fructus
+    plant_part: fructus
+    taxa: [Vaccinium macrocarpon]                 # wfo-0000422267
+    ema_botanical_names: [Vaccinium macrocarpon Aiton]
+    nccih_slug: cranberry
+    pubmed_mesh: Vaccinium macrocarpon
+    openfda_terms: [cranberry]
+    openfda_exclude: []
+
+  - key: senna
+    common_name: Senna
+    ema_latin_name: Sennae folium
+    plant_part: folium
+    taxa: [Senna alexandrina]                     # wfo-0000164723
+    ema_botanical_names: [Cassia senna L., Cassia angustifolia Vahl]
+    nccih_slug: null                              # no NCCIH fact sheet (HTTP 404)
+    pubmed_mesh: Senna Plant
+    openfda_terms: [senna]
+    openfda_exclude: []
+
+  - key: hawthorn
+    common_name: Hawthorn
+    ema_latin_name: Crataegi folium cum flore
+    plant_part: folium cum flore
+    taxa: [Crataegus monogyna, Crataegus laevigata, Crataegus pentagyna, Crataegus azarolus]
+    ema_botanical_names: [Crataegus monogyna Jacq., Crataegus laevigata (Poir.) DC., Crataegus pentagyna Waldst. & Kit. ex Willd., Crataegus azarolus L.]
+    nccih_slug: hawthorn
+    pubmed_mesh: Crataegus
+    openfda_terms: [hawthorn]
+    openfda_exclude: []
+
+  - key: ginkgo
+    common_name: Ginkgo
+    ema_latin_name: Ginkgo folium
+    plant_part: folium
+    taxa: [Ginkgo biloba]                         # wfo-0000795526
+    ema_botanical_names: [Ginkgo biloba L.]
+    nccih_slug: ginkgo
+    pubmed_mesh: Ginkgo biloba
+    openfda_terms: [ginkgo]
+    openfda_exclude: []

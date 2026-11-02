@@ -21,7 +21,13 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
 
-from herbaguard.domain.enums import AssertionStatus, EvidenceType, UseCategory
+from herbaguard.domain.enums import (
+    AssertionStatus,
+    EvidenceRelation,
+    EvidenceType,
+    StatementType,
+    UseCategory,
+)
 from herbaguard.models.base import Base, created_at_column, enum_check, updated_at_column, uuid_pk
 
 # Dimension of the embedding model planned for Phase 5 (bge-small-en-v1.5 = 384).
@@ -88,6 +94,7 @@ class InteractionAssertion(Base):
         enum_check("use_category", UseCategory),
         enum_check("status", AssertionStatus),
         enum_check("evidence_type", EvidenceType),
+        enum_check("statement_type", StatementType),
         CheckConstraint(
             "(drug_id IS NOT NULL) <> (drug_class_code IS NOT NULL)", "exactly_one_object"
         ),
@@ -104,6 +111,12 @@ class InteractionAssertion(Base):
     )
     # The source's own wording for the drug or class (e.g. "coumarin-type anticoagulants").
     object_label_verbatim: Mapped[str] = mapped_column(Text)
+    # The source's own wording for the herb (labels often say just "ginseng"). NULL when the
+    # source document is about the herb itself (EMA monograph, NCCIH fact sheet).
+    subject_label_verbatim: Mapped[str | None] = mapped_column(Text)
+    statement_type: Mapped[str] = mapped_column(
+        String(32), default=StatementType.UNCLASSIFIED.value
+    )
     source_code: Mapped[str] = mapped_column(ForeignKey("source.code"))
     evidence_type: Mapped[str] = mapped_column(String(8))
     source_section: Mapped[str | None] = mapped_column(
@@ -162,3 +175,18 @@ class Chunk(Base):
         TSVECTOR, Computed("to_tsvector('english', coalesce(text, ''))", persisted=True)
     )
     created_at: Mapped[datetime] = created_at_column()
+
+
+class HerbalSubstanceEvidence(Base):
+    """Links evidence items (monograph sections, fact sheets, articles, labels) to substances."""
+
+    __tablename__ = "herbal_substance_evidence"
+    __table_args__ = (enum_check("relation", EvidenceRelation),)
+
+    herbal_substance_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("herbal_substance.id", ondelete="CASCADE"), primary_key=True
+    )
+    evidence_item_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("evidence_item.id", ondelete="CASCADE"), primary_key=True, index=True
+    )
+    relation: Mapped[str] = mapped_column(String(32), primary_key=True)

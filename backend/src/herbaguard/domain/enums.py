@@ -83,6 +83,9 @@ class EvidenceType(StrEnum):
     TRADITIONAL_USE = "TRAD"
     SPONTANEOUS_REPORT = "SPONT"
     COMPUTATIONAL = "COMP"
+    # Added in Phase 2 for literature that fits none of the categories above.
+    NARRATIVE_REVIEW = "REV"  # non-systematic review
+    OTHER = "OTHER"  # letters, editorials, unclassifiable records
 
 
 class InteractionClass(StrEnum):
@@ -104,3 +107,27 @@ class AssertionStatus(StrEnum):
     ACTIVE = "active"
     SUPERSEDED = "superseded"
     REJECTED = "rejected"  # failed human QA
+
+
+class StatementType(StrEnum):
+    """What an extracted sentence says about a herb–drug pair (Phase 2).
+
+    Set by deterministic cue rules (``herbaguard.ingestion.normalize.statements``). It describes
+    the *sentence*, not the final interaction class, which Phase 3 computes.
+    """
+
+    INTERACTION = "interaction"  # states or predicts an interaction / contraindication
+    PRECAUTION = "precaution"  # advises caution, monitoring or consultation
+    NO_INTERACTION_REPORTED = "no_interaction_reported"  # states none was found/reported
+    UNCERTAIN = "uncertain"  # source itself says evidence is conflicting or unclear
+    UNCLASSIFIED = "unclassified"  # drug named in an interaction context without clear cues
+
+
+class EvidenceRelation(StrEnum):
+    """Why an evidence item is linked to a herbal substance."""
+
+    MONOGRAPH = "monograph"  # the substance's own regulatory monograph
+    FACT_SHEET = "fact_sheet"  # government fact sheet about the substance
+    LABEL_MENTION = "label_mention"  # a drug label naming the herb
+    LITERATURE_INTERACTION = "literature_interaction"  # PubMed herb-drug interaction query
+    LITERATURE_CLINICAL = "literature_clinical"  # PubMed SR / meta-analysis / RCT query

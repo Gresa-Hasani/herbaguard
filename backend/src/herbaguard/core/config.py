@@ -60,7 +60,8 @@ class Settings(BaseSettings):
     raw_data_dir: Path = Path("../data/raw")
 
     # Polite identification for external APIs (NCBI, Wikidata and openFDA ask for it).
-    http_user_agent: str = "HerbaGuard/0.1 (EthnoHack 2026; research prototype)"
+    # Wikimedia's robot policy rejects (HTTP 403) user agents without contact information.
+    http_user_agent: str = "HerbaGuard/0.1 (+https://github.com/Gresa-Hasani/herbaguard; EthnoHack 2026 research prototype)"
     http_timeout_seconds: float = Field(default=30.0, gt=0)
     contact_email: str | None = None
 

@@ -18,7 +18,7 @@ HerbaGuard combines herb-side regulatory monographs (EMA HMPC), drug-side labels
 |---|---|---|
 | 0 | Research and dataset audit | Done — see [`docs/research/`](docs/research/) |
 | 1 | Architecture and foundation | Done — see [`docs/architecture/`](docs/architecture/) |
-| 2 | Data ingestion and normalisation | Not started |
+| 2 | Data ingestion and normalisation | Done — see [`docs/data/`](docs/data/) |
 | 3 | Backend and core APIs | Not started |
 | 4 | Knowledge graph (relational edges) | Not started |
 | 5 | AI evidence assistant | Not started |
@@ -26,7 +26,7 @@ HerbaGuard combines herb-side regulatory monographs (EMA HMPC), drug-side labels
 | 7 | Integration and validation | Not started |
 | 8 | Submission | Not started |
 
-**Implemented now:** project structure, database schema v1 with provenance tables and migration, FastAPI service (health, readiness, metadata, standard error format, request IDs, structured logging), React application shell with the persistent disclaimer, Docker Compose stack, tests and CI. **No scientific data has been ingested yet**, and the app shows no findings.
+**Implemented now:** project structure; database schema with provenance tables (migrations 0001–0002); FastAPI service (health, readiness, metadata, standard error format, request IDs, structured logging); React application shell with the persistent disclaimer; Docker Compose stack; tests and CI; and a **data pipeline** that ingests the 16 curated herbs from WFO/WCVP/NCBI/GBIF/Wikidata, EMA herbal monographs, NCCIH fact sheets, openFDA drug labels, RxNorm/ATC and PubMed with full provenance and validation. The API does not serve this data yet (Phase 3), and the web app shows no findings.
 
 ## Quick start (Docker)
 
@@ -45,6 +45,19 @@ docker compose up --build
 | PostgreSQL | `127.0.0.1:5455` (user/password/db `herbaguard`) |
 
 Ports can be changed in `.env` (`HERBAGUARD_DB_HOST_PORT`, `HERBAGUARD_API_HOST_PORT`, `HERBAGUARD_WEB_HOST_PORT`). Migrations run automatically when the API starts.
+
+## Data pipeline
+
+With the database running (`docker compose up -d db`) and the backend installed (see below):
+
+```bash
+cd backend
+herbaguard ingest all      # ~5 minutes; fetches live data, stores raw snapshots in data/raw/
+herbaguard validate        # post-ingestion checks
+herbaguard report          # counts and data-quality issues
+```
+
+Details: [`docs/data/pipeline.md`](docs/data/pipeline.md) · sources and licences: [`docs/data/sources.md`](docs/data/sources.md) · latest results: [`docs/data/ingestion-results.md`](docs/data/ingestion-results.md).
 
 ## Local development
 
@@ -77,17 +90,18 @@ cd backend && ruff check . && ruff format --check . && mypy && pytest
 cd frontend && npm run lint && npm run typecheck && npm test && npm run build
 ```
 
-Database tests create and drop a separate `herbaguard_test` database; they are skipped if PostgreSQL is unreachable locally. In CI they must run.
+Database tests create and drop a separate `herbaguard_test` database; they are skipped if PostgreSQL is unreachable locally. In CI they must run. Tests that call the real external APIs are opt-in: `pytest -m live`.
 
 ## Repository layout
 
 ```
 backend/        FastAPI app, domain vocabulary, ORM models, Alembic migrations, ingestion CLI, tests
 frontend/       React + TypeScript (Vite) single-page app, tests, nginx config
-data/curated/   Curated, committed mapping tables (from Phase 2)
+data/curated/   Curated herb list and interaction lexicon (committed)
 data/raw/       Raw source snapshots — git-ignored (licences may forbid redistribution)
 docs/research/  Phase 0: requirements, dataset and API audits, scientific framework, MVP scope
 docs/architecture/  System overview, data model, API conventions, decision records
+docs/data/      Data pipeline, source notes and licences, ingestion and extraction results
 prompts/        The prompt used for each development phase
 ```
 
