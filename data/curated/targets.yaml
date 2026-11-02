@@ -1,0 +1,35 @@
+# Enzymes and transporters in HerbaGuard's mechanism layer (Phase 4).
+#
+# Authored by the HerbaGuard team; committed to the repository (source code: herbaguard_curated).
+# Scope: the CYP enzymes and drug transporters used by the FDA "Examples of Drugs that Interact
+# with CYP Enzymes and Transporter Systems" table (content current as of 2026-05-29), plus CYP3A4
+# and CYP3A5, which EU herbal monographs name individually.
+#
+# Every UniProt accession below was checked on 2026-11-02 against
+# https://rest.uniprot.org/uniprotkb/<accession>.txt: reviewed (Swiss-Prot) entry, organism
+# Homo sapiens, gene name equal to `gene`.
+#
+#   symbol     HerbaGuard key. CYP enzymes by CYP name; transporters by HGNC gene symbol.
+#   aliases    spellings used by FDA/EMA (shown to users; matching itself is the fixed table in
+#              backend/src/herbaguard/ingestion/normalize/targets.py)
+#   uniprot    null for CYP3A: FDA's "CYP3A" groups CYP3A4 and CYP3A5 and is not one protein.
+version: 1
+targets:
+  - {symbol: CYP1A2, name: Cytochrome P450 1A2, type: enzyme, gene: CYP1A2, uniprot: P05177, aliases: ["1A2"]}
+  - {symbol: CYP2B6, name: Cytochrome P450 2B6, type: enzyme, gene: CYP2B6, uniprot: P20813, aliases: ["2B6"]}
+  - {symbol: CYP2C8, name: Cytochrome P450 2C8, type: enzyme, gene: CYP2C8, uniprot: P10632, aliases: ["2C8"]}
+  - {symbol: CYP2C9, name: Cytochrome P450 2C9, type: enzyme, gene: CYP2C9, uniprot: P11712, aliases: ["2C9"]}
+  - {symbol: CYP2C19, name: Cytochrome P450 2C19, type: enzyme, gene: CYP2C19, uniprot: P33261, aliases: ["2C19"]}
+  - {symbol: CYP2D6, name: Cytochrome P450 2D6, type: enzyme, gene: CYP2D6, uniprot: P10635, aliases: ["2D6"]}
+  - {symbol: CYP3A, name: "Cytochrome P450 3A (CYP3A4 and CYP3A5, as grouped by FDA)", type: enzyme, gene: null, uniprot: null, aliases: ["3A"]}
+  - {symbol: CYP3A4, name: Cytochrome P450 3A4, type: enzyme, gene: CYP3A4, uniprot: P08684, aliases: []}
+  - {symbol: CYP3A5, name: Cytochrome P450 3A5, type: enzyme, gene: CYP3A5, uniprot: P20815, aliases: []}
+  - {symbol: ABCB1, name: P-glycoprotein (P-gp, MDR1), type: transporter, gene: ABCB1, uniprot: P08183, aliases: [P-gp, P-glycoprotein]}
+  - {symbol: ABCG2, name: Breast cancer resistance protein (BCRP), type: transporter, gene: ABCG2, uniprot: Q9UNQ0, aliases: [BCRP]}
+  - {symbol: SLCO1B1, name: Organic anion transporting polypeptide 1B1 (OATP1B1), type: transporter, gene: SLCO1B1, uniprot: Q9Y6L6, aliases: [OATP1B1]}
+  - {symbol: SLCO1B3, name: Organic anion transporting polypeptide 1B3 (OATP1B3), type: transporter, gene: SLCO1B3, uniprot: Q9NPD5, aliases: [OATP1B3]}
+  - {symbol: SLC22A6, name: Organic anion transporter 1 (OAT1), type: transporter, gene: SLC22A6, uniprot: Q4U2R8, aliases: [OAT1]}
+  - {symbol: SLC22A8, name: Organic anion transporter 3 (OAT3), type: transporter, gene: SLC22A8, uniprot: Q8TCC7, aliases: [OAT3]}
+  - {symbol: SLC47A1, name: Multidrug and toxin extrusion protein 1 (MATE1), type: transporter, gene: SLC47A1, uniprot: Q96FL8, aliases: [MATE1]}
+  - {symbol: SLC47A2, name: Multidrug and toxin extrusion protein 2 (MATE2-K), type: transporter, gene: SLC47A2, uniprot: Q86VL8, aliases: [MATE2-K]}
+  - {symbol: SLC22A2, name: Organic cation transporter 2 (OCT2), type: transporter, gene: SLC22A2, uniprot: O15244, aliases: [OCT2]}

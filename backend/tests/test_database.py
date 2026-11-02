@@ -21,11 +21,14 @@ from herbaguard.models import (
     Constituent,
     Drug,
     DrugClass,
+    DrugTargetRoleLink,
     EvidenceItem,
     HerbalSubstance,
     InteractionAssertion,
     Source,
     SourceRecord,
+    Target,
+    TargetModulation,
     Taxon,
     TaxonName,
 )
@@ -210,3 +213,49 @@ def test_migration_downgrade_and_upgrade_round_trip(
     assert "taxon" not in inspect(migrated_engine).get_table_names()
     command.upgrade(alembic_config, "head")
     assert "taxon" in inspect(migrated_engine).get_table_names()
+
+
+# --------------------------------------------------------------------------- Phase 4 (migration 0003)
+
+
+def _target_and_drug(session: Session) -> tuple[Source, Target, Drug]:
+    source = _source(session)
+    target = Target(symbol="CYP3A", name="Cytochrome P450 3A", target_type="enzyme")
+    drug = Drug(rxcui="6960", name="midazolam")
+    session.add_all([target, drug])
+    session.flush()
+    return source, target, drug
+
+
+def test_drug_role_accepts_moderately_sensitive_and_rejects_unknown_potency(
+    db_session: Session,
+) -> None:
+    source, target, drug = _target_and_drug(db_session)
+    db_session.add(DrugTargetRoleLink(drug_id=drug.id, target_id=target.id, role="moderately_sensitive_substrate",
+                                      source_code=source.code))  # fmt: skip
+    db_session.flush()
+    db_session.add(DrugTargetRoleLink(drug_id=drug.id, target_id=target.id, role="inhibitor",
+                                      potency="very strong", source_code=source.code))  # fmt: skip
+    with pytest.raises(IntegrityError, match="ck_drug_target_role_potency_valid"):
+        db_session.flush()
+
+
+def test_same_effect_from_two_evidence_items_is_kept_twice(db_session: Session) -> None:
+    source, target, _ = _target_and_drug(db_session)
+    substance = _st_johns_wort(db_session)
+    items = [
+        EvidenceItem(
+            source_code=source.code, external_id=f"doc#{use}", evidence_type="REG", title=use
+        )
+        for use in ("WEU", "TU")
+    ]
+    db_session.add_all(items)
+    db_session.flush()
+    for item in items:
+        db_session.add(TargetModulation(herbal_substance_id=substance.id, target_id=target.id, effect="induces",
+                                        evidence_type="REG", source_code=source.code, evidence_item_id=item.id))  # fmt: skip
+    db_session.flush()
+    db_session.add(TargetModulation(herbal_substance_id=substance.id, target_id=target.id, effect="induces",
+                                    evidence_type="REG", source_code=source.code, evidence_item_id=items[0].id))  # fmt: skip
+    with pytest.raises(IntegrityError, match="uq_target_modulation_herbal_substance_id"):
+        db_session.flush()

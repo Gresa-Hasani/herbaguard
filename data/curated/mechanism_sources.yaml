@@ -1,0 +1,55 @@
+# How rows of the FDA CYP/transporter table and EU monograph sentences map to HerbaGuard entities
+# (Phase 4). Authored by the HerbaGuard team (source code: herbaguard_curated).
+#
+# 1. fda_non_drug_rows: Table 1 rows that are not single drugs. FDA says Table 1 "also includes
+#    five other substances": St. John's wort, curcumin, diosmin, tobacco (smoking) and grapefruit
+#    juice. piperine and "oral contraceptives" are also not single RxNorm ingredients. Every such
+#    row must be listed here; an unlisted non-drug row would otherwise be sent to RxNorm.
+#      kind: herb         → the effect is stored for every herbal substance of `herb_key`
+#      kind: constituent  → the effect is stored for the constituent (context only, never class B);
+#                           `found_in` links it to curated herbs (herbal_substance_constituent)
+#      kind: out_of_scope → not stored; reported as an info-level data-quality issue
+# 2. fda_skip_patterns: drug-name patterns that are skipped with a reason instead of being sent to
+#    RxNorm (combination regimens, single enantiomers).
+# 3. ema_subject_terms: extra words that identify a herb as the subject of an EMA sentence, in
+#    addition to the first word of its EMA Latin name and generic words ("preparation", "extract").
+version: 1
+fda_non_drug_rows:
+  - name: "St. John's wort"
+    kind: herb
+    herb_key: st_johns_wort
+    note: "FDA footnote 18: the effect varies widely and is preparation dependent (kept as condition)."
+  - name: curcumin
+    kind: constituent
+    constituent:
+      name: curcumin
+      inchikey: VFLDPWHFBUODDF-FCXRPNKRSA-N   # PubChem CID 969516, C21H20O6 (checked 2026-11-02, PubChem PUG REST)
+      pubchem_cid: 969516
+      molecular_formula: C21H20O6
+    found_in: [turmeric]   # curcuminoids are the characteristic constituents of Curcumae longae rhizoma
+    note: "FDA lists curcumin as a supplement. Turmeric preparations are not the same product; stored as constituent-level context."
+  - {name: diosmin, kind: out_of_scope, note: "Supplement; not a curated herb."}
+  - {name: "grapefruit juice", kind: out_of_scope, note: "Food; not a curated herb."}
+  - {name: "tobacco (smoking)", kind: out_of_scope, note: "Not a medicinal herb in scope."}
+  - {name: piperine, kind: out_of_scope, note: "Black pepper constituent; Piper nigrum is not a curated herb."}
+  - {name: "oral contraceptives", kind: out_of_scope, note: "Drug group, not one RxNorm ingredient."}
+fda_skip_patterns:
+  - {pattern: '\band\b', reason: "Combination regimen (e.g. 'atazanavir and ritonavir'): the effect belongs to the combination, not to one ingredient."}
+  - {pattern: '^[RS]-', reason: "Single enantiomer (e.g. 'S-mephenytoin'): RxNorm ingredients do not distinguish enantiomers reliably."}
+ema_subject_terms:
+  st_johns_wort: [hypericum, "St John's wort"]
+  ginkgo: [ginkgo, "G. biloba"]   # EMA 4.5: "... indicates that G. biloba may inhibit P-glycoprotein ..."
+  garlic: [garlic, allium]
+  liquorice: [liquorice, glycyrrhiza]
+  green_tea: [camellia, "green tea"]
+  echinacea: [echinacea]
+  ginseng: [ginseng, panax]
+  milk_thistle: [silybum, silymarin]
+  valerian: [valerian, valeriana]
+  black_cohosh: [cimicifuga, actaea]
+  turmeric: [curcuma, turmeric]
+  saw_palmetto: [serenoa, sabal]
+  ginger: [zingiber, ginger]
+  cranberry: [vaccinium, cranberry]
+  senna: [senna]
+  hawthorn: [crataegus, hawthorn]

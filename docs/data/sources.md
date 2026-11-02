@@ -12,6 +12,7 @@ Verification markers as in Phase 0: **✔ tested** (real request on 2026-11-02),
 | `wikidata` | Wikidata Query Service | Independent crosswalk check, QID | CC0 ◐ | ✔ tested | Requires contact info in User-Agent |
 | `ema_hmpc` | EMA herbal inventory + EU herbal monographs | Indications (WEU/TU), contraindications, warnings, interactions, undesirable effects | **✔ page: every monograph PDF states "Reproduction is authorised provided the source is acknowledged."** (status in the source registry kept as `to_verify` until the EMA legal notice is reviewed for database storage) | ✔ tested; 16/16 monographs parsed and cross-validated | Monograph dates range 2013–2026; inventory spreadsheet is regenerated daily (snapshot stored); duplicate inventory rows de-duplicated |
 | `nccih` | NCCIH Herbs at a Glance | Plain-language sections; safety statements | U.S. government work ○ (page-level notices to verify) | ✔ tested; 15 fact sheets (no senna page) | Lay terms ("blood thinner", "HIV drugs") mapped conservatively |
+| `fda_cyp_table` | FDA: Examples of Drugs that Interact with CYP Enzymes and Transporter Systems (Phase 4) | Drug roles (substrate / inhibitor / inducer, potency) for 7 CYPs and 9 transporters; St John's wort and curcumin effects | U.S. government work ○ (page notice to verify) | ✔ tested (2026-11-02, browser) | Examples, not exhaustive; details in [mechanism-sources.md](mechanism-sources.md) |
 | `openfda_label` | openFDA drug labels | Drug-specific label sentences naming a herb | openFDA terms; CC0 ○ | ✔ tested | Capped at 500 most recent labels per herb (no API key); multi-ingredient products skipped; some labels lack harmonised fields |
 | `rxnav` | RxNorm / RxClass | Ingredient normalisation, ATC classes | NLM terms; ATC © WHO CC (codes only stored) ◐ | ✔ tested | Some lay/foreign drug names do not resolve (recorded) |
 | `pubmed` | PubMed E-utilities | Literature metadata, abstracts (local only), evidence type | Metadata free; abstracts © publishers — **never committed** | ✔ tested | Evidence type from publication types reflects design, not quality; MeSH indexing lag |
@@ -28,4 +29,4 @@ Verification markers as in Phase 0: **✔ tested** (real request on 2026-11-02),
 
 ## Deferred to later phases
 
-FDA CYP/transporter table and mechanism edges (`target_modulation`, `drug_target_role`) → Phase 4; CAERS, EFSA, ChEBI/PubChem constituents, ClinicalTrials.gov → P1 items for later phases if time allows.
+FDA CYP/transporter table and mechanism edges (`target_modulation`, `drug_target_role`) → **done in Phase 4** ([mechanism-sources.md](mechanism-sources.md)); CAERS, EFSA, ChEBI/PubChem constituents, ClinicalTrials.gov → P1 items for later phases if time allows.

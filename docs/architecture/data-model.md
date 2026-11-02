@@ -109,3 +109,14 @@ The schema follows four rules from the Phase 0 research (`docs/research/scientif
 | Evidence types `REV` (narrative review) and `OTHER` | PubMed records that are neither primary studies nor systematic reviews |
 
 The downgrade of 0002 refuses to run when rows use `REV`/`OTHER` (data would violate the 0001 vocabulary); it never deletes evidence silently.
+
+## 7. Changes in migration 0003 (Phase 4)
+
+| Change | Why |
+|---|---|
+| `target_modulation.potency` (strong / moderate / weak, CHECK) and `evidence_item_id` (FK, CASCADE); unique key now includes `evidence_item_id` (NULLS NOT DISTINCT) | Relay the source's potency category; cite the exact monograph section or FDA table; the same effect stated in two documents (WEU and TU columns) stays two rows |
+| `drug_target_role.potency`, `conditions` (e.g. "FDA footnotes: [19] S-warfarin"), `evidence_item_id` | Same reasons |
+| `drug_target_role.role` gains `moderately_sensitive_substrate` | FDA's second substrate category (AUC ≥2- to <5-fold with strong inhibitors) |
+
+The downgrade refuses to run when rows use values introduced in 0003. Populated by `herbaguard ingest mechanisms`; rules for using the edges: [../api/mechanism-paths.md](../api/mechanism-paths.md).
+

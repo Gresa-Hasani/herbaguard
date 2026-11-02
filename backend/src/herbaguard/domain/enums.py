@@ -56,10 +56,37 @@ class ModulationEffect(StrEnum):
 
 
 class DrugTargetRole(StrEnum):
+    """A drug's role for an enzyme or transporter.
+
+    The two "sensitive" values follow the FDA definitions (AUC increase with strong inhibitors of
+    the pathway: sensitive ≥5-fold; moderately sensitive ≥2- to <5-fold). ``substrate`` is used
+    for transporter substrates, which FDA does not grade by sensitivity.
+    """
+
     SUBSTRATE = "substrate"
     SENSITIVE_SUBSTRATE = "sensitive_substrate"
+    MODERATELY_SENSITIVE_SUBSTRATE = "moderately_sensitive_substrate"  # Phase 4
     INHIBITOR = "inhibitor"
     INDUCER = "inducer"
+
+
+SUBSTRATE_ROLES = frozenset(
+    {
+        DrugTargetRole.SUBSTRATE,
+        DrugTargetRole.SENSITIVE_SUBSTRATE,
+        DrugTargetRole.MODERATELY_SENSITIVE_SUBSTRATE,
+    }
+)
+
+
+class Potency(StrEnum):
+    """Clinical potency category of an inhibitor or inducer as stated by the source (FDA
+    definitions: strong / moderate / weak by AUC change of sensitive index substrates). Never
+    computed by HerbaGuard."""
+
+    STRONG = "strong"
+    MODERATE = "moderate"
+    WEAK = "weak"
 
 
 class TargetType(StrEnum):

@@ -60,6 +60,17 @@ Example (abridged, real data):
 }
 ```
 
+## Mechanism layer (Phase 4)
+
+| Method & path | Purpose | Notes |
+|---|---|---|
+| `GET /api/v1/targets` | Enzymes and transporters | UniProt accession and link, counts of herb effects and drug roles |
+| `GET /api/v1/targets/{symbol}` | One target | `role` filter, `limit` (≤500); herb effects and drug roles with provenance; note that FDA lists examples only |
+| `GET /api/v1/plants/{wfo_id}/mechanisms` | Knowledge-graph JSON for a herb | Nodes herb / constituent / target / drug, edges contains / induces / inhibits / substrate_of with statement ids; `include_drugs` (default true, ≤200 drugs) |
+| `POST /api/v1/mechanisms/paths` | Paths between one herb and one drug | `{herb, drug, allow_remote_drug_lookup}`; each path with `qualifies_for_class_b` and `reasons_not_qualifying`; **409** for ambiguous herbs |
+
+The interaction check (`POST /api/v1/interactions/check`) returns `mechanism_paths` per drug. Rules: [mechanism-paths.md](mechanism-paths.md).
+
 ## Sources and coverage
 
 | Method & path | Purpose |

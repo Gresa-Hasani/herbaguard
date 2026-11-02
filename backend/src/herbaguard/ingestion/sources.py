@@ -110,6 +110,25 @@ SOURCES: tuple[SourceDefinition, ...] = (
         licence_status=LicenceStatus.TO_VERIFY,
         redistributable=True,
     ),
+    # --- Phase 4: mechanism layer (P1 in the audit) ---
+    SourceDefinition(
+        code="fda_cyp_table",
+        name=(
+            "FDA: Examples of Drugs that Interact with CYP Enzymes and Transporter Systems "
+            "(For Healthcare Professionals)"
+        ),
+        provider="U.S. Food and Drug Administration",
+        priority="P1",
+        access_method="web_page",
+        homepage_url=(
+            "https://www.fda.gov/drugs/drug-interactions-labeling/"
+            "healthcare-professionals-fdas-examples-drugs-interact-cyp-enzymes-and-transporter-systems"
+        ),
+        is_official=True,
+        licence="U.S. government work (public domain, to verify page notices)",
+        licence_status=LicenceStatus.TO_VERIFY,
+        redistributable=True,
+    ),
     # --- Cross-reference sources used during taxonomic normalisation (P1 in the audit) ---
     SourceDefinition(
         code="wcvp_ethcstwin",

@@ -91,3 +91,77 @@ def load_lexicon(path: Path | None = None) -> Lexicon:
         (path or CURATED_DIR / "interaction_lexicon.yaml").read_text(encoding="utf-8")
     )
     return Lexicon.model_validate(data)
+
+
+# --------------------------------------------------------------------------- Phase 4
+
+
+class TargetEntry(BaseModel):
+    symbol: str = Field(pattern=r"^[A-Z0-9-]{2,32}$")
+    name: str
+    type: str = Field(pattern=r"^(enzyme|transporter)$")
+    gene: str | None
+    uniprot: str | None = Field(default=None, pattern=r"^[A-Z0-9]{6,10}$")
+    aliases: list[str] = Field(default_factory=list)
+
+
+class TargetList(BaseModel):
+    version: int
+    targets: list[TargetEntry]
+
+    @field_validator("targets")
+    @classmethod
+    def _unique(cls, targets: list[TargetEntry]) -> list[TargetEntry]:
+        symbols = [t.symbol for t in targets]
+        accessions = [t.uniprot for t in targets if t.uniprot]
+        if len(symbols) != len(set(symbols)) or len(accessions) != len(set(accessions)):
+            msg = "Duplicate target symbol or UniProt accession in targets.yaml"
+            raise ValueError(msg)
+        return targets
+
+
+class ConstituentEntry(BaseModel):
+    name: str
+    inchikey: str = Field(pattern=r"^[A-Z]{14}-[A-Z]{10}-[A-Z]$")
+    pubchem_cid: int | None = None
+    chebi_id: str | None = None
+    molecular_formula: str | None = None
+
+
+class FdaNonDrugRow(BaseModel):
+    name: str
+    kind: str = Field(pattern=r"^(herb|constituent|out_of_scope)$")
+    herb_key: str | None = None
+    constituent: ConstituentEntry | None = None
+    found_in: list[str] = Field(default_factory=list)
+    note: str | None = None
+
+
+class SkipPattern(BaseModel):
+    pattern: str
+    reason: str
+
+
+class MechanismSources(BaseModel):
+    version: int
+    fda_non_drug_rows: list[FdaNonDrugRow]
+    fda_skip_patterns: list[SkipPattern] = Field(default_factory=list)
+    ema_subject_terms: dict[str, list[str]] = Field(default_factory=dict)
+
+    def non_drug_row(self, name: str) -> FdaNonDrugRow | None:
+        key = name.strip().lower()
+        return next((r for r in self.fda_non_drug_rows if r.name.lower() == key), None)
+
+
+@lru_cache
+def load_targets(path: Path | None = None) -> TargetList:
+    data = yaml.safe_load((path or CURATED_DIR / "targets.yaml").read_text(encoding="utf-8"))
+    return TargetList.model_validate(data)
+
+
+@lru_cache
+def load_mechanism_sources(path: Path | None = None) -> MechanismSources:
+    data = yaml.safe_load(
+        (path or CURATED_DIR / "mechanism_sources.yaml").read_text(encoding="utf-8")
+    )
+    return MechanismSources.model_validate(data)

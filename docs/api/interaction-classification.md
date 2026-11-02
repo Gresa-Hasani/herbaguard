@@ -12,7 +12,7 @@
 | Drug | Name, brand name or RxCUI resolved to one RxNorm ingredient (database first; optionally RxNav live, recorded with provenance). |
 | Statements | Active (`status = active`) interaction statements from Phase 2 for the herb's substances that name **the drug**, or **an ATC class containing the drug** (all ancestor codes of the drug's ATC classes, e.g. warfarin B01AA → B, B01, B01A, B01AA). Superseded statements are never used. Statements repeated for several species of one herb are merged. |
 | Herb-level "None reported" | EMA monograph §4.5 sections whose whole text is "None reported/known" (stored at section level in Phase 2). |
-| Mechanisms | Herb → enzyme/transporter effect + drug → substrate role. **Empty until Phase 4** (FDA CYP table not yet ingested). |
+| Mechanisms | Phase 4: herb → enzyme/transporter effects (EMA monograph 4.5 sentences, FDA table) joined with drug roles (FDA CYP/transporter table) on the same target. Only *qualifying* paths are used — rules in [mechanism-paths.md](mechanism-paths.md). |
 
 Each statement carries its **statement type** (Phase 2, deterministic sentence cues): `interaction`, `precaution`, `uncertain`, `unclassified`, `no_interaction_reported`; and its **evidence type**. Only `REG` (EMA monographs, FDA labels) and `GOV` (NCCIH) are *authoritative*.
 
@@ -75,7 +75,7 @@ Representative verified scenarios (live API against the development database):
 ## 5. Known limitations of the rules
 
 1. **Conservative label rule.** 7 pairs move from A to C because their label sentences sit in general warning sections without naming the drug. One is the isotretinoin error the rule was written for; the others (St John's wort with lithium, meperidine, methamphetamine, lisdexamfetamine; echinacea with nimodipine) are probably genuine statements about the label drug that are now under-classified. The sentence remains visible as the decisive statement of the C finding.
-2. **No class B from mechanisms yet** (Phase 4).
+2. **Mechanism-based class B** (Phase 4) depends on FDA's example lists and on recognised monograph sentence forms; see [mechanism-paths.md](mechanism-paths.md) §5. The Phase 3 real-data counts in §4 predate Phase 4.
 3. **Class granularity** depends on RxClass ATC level (mostly level 4); a statement about a level-5 code would not match a level-4 membership.
 4. **Statement types come from Phase 2 sentence rules** (lexicon-bound recall); see `docs/data/pipeline.md` §3.3.
 5. **Ambiguity is only detectable within the curated herb set**: "ginseng" resolves to *Panax ginseng* because *Eleutherococcus senticosus* is not curated; the response warns that a common name was matched.

@@ -15,16 +15,22 @@ from herbaguard.ingestion.normalize.names import normalize_for_lookup
 from herbaguard.ingestion.sources import SOURCES
 from herbaguard.models import (
     Chunk,
+    Constituent,
     Drug,
     DrugClass,
     DrugClassMembership,
+    DrugTargetRoleLink,
     EvidenceItem,
     HerbalSubstance,
+    HerbalSubstanceConstituent,
     HerbalSubstanceEvidence,
     Indication,
     InteractionAssertion,
     InteractionAssertionEvidence,
+    Provenance,
     Source,
+    Target,
+    TargetModulation,
     Taxon,
     TaxonName,
 )
@@ -267,3 +273,113 @@ def supersede_missing_assertions(
     stmt = update(InteractionAssertion).where(*conditions).values(status="superseded")
     result: CursorResult[Any] = session.execute(stmt)  # type: ignore[assignment]
     return result.rowcount or 0
+
+
+# --------------------------------------------------------------------------- Phase 4: mechanism layer
+
+
+def upsert_target(
+    session: Session,
+    *,
+    symbol: str,
+    name: str,
+    target_type: str,
+    uniprot_accession: str | None,
+) -> uuid.UUID:
+    values = {"name": name, "target_type": target_type, "uniprot_accession": uniprot_accession}
+    base = insert(Target).values(id=stable_id("target", symbol), symbol=symbol, **values)
+    stmt = base.on_conflict_do_update(index_elements=["symbol"], set_=values).returning(Target.id)
+    return session.execute(stmt).scalar_one()
+
+
+def upsert_constituent(session: Session, *, inchikey: str, name: str, **values: Any) -> uuid.UUID:
+    base = insert(Constituent).values(
+        id=stable_id("constituent", inchikey), inchikey=inchikey, name=name, **values
+    )
+    stmt = base.on_conflict_do_update(
+        index_elements=["inchikey"], set_={"name": name, **values}
+    ).returning(Constituent.id)
+    return session.execute(stmt).scalar_one()
+
+
+def link_constituent(
+    session: Session,
+    *,
+    herbal_substance_id: uuid.UUID,
+    constituent_id: uuid.UUID,
+    source_code: str,
+    is_marker: bool = False,
+) -> None:
+    stmt = insert(HerbalSubstanceConstituent).values(
+        herbal_substance_id=herbal_substance_id,
+        constituent_id=constituent_id,
+        is_marker=is_marker,
+        source_code=source_code,
+    )
+    session.execute(stmt.on_conflict_do_nothing())
+
+
+def upsert_modulation(session: Session, **values: Any) -> uuid.UUID:
+    """One row per (subject, target, effect, source, evidence item). Re-runs update in place."""
+    modulation_id = stable_id(
+        "target_modulation",
+        values.get("herbal_substance_id") or values.get("constituent_id"),
+        values["target_id"],
+        values["effect"],
+        values["source_code"],
+        values.get("evidence_item_id"),
+    )
+    stmt = insert(TargetModulation).values(id=modulation_id, **values)
+    session.execute(
+        stmt.on_conflict_do_update(
+            index_elements=["id"], set_=_set_clause(TargetModulation, values)
+        )
+    )
+    return modulation_id
+
+
+def upsert_drug_role(session: Session, **values: Any) -> uuid.UUID:
+    """One row per (drug, target, role, source) — the table's natural key."""
+    role_id = stable_id(
+        "drug_target_role",
+        values["drug_id"],
+        values["target_id"],
+        values["role"],
+        values["source_code"],
+    )
+    key_columns = ("drug_id", "target_id", "role", "source_code")
+    updates = {k: v for k, v in values.items() if k not in key_columns}
+    base = insert(DrugTargetRoleLink).values(id=role_id, **values)
+    stmt = base.on_conflict_do_update(
+        constraint="uq_drug_target_role_drug_id", set_=_set_clause(DrugTargetRoleLink, updates)
+    ).returning(DrugTargetRoleLink.id)
+    return session.execute(stmt).scalar_one()
+
+
+def remove_stale_edges(
+    session: Session,
+    model: type[TargetModulation] | type[DrugTargetRoleLink],
+    *,
+    source_code: str,
+    kept_ids: set[uuid.UUID],
+    extra_conditions: Iterable[Any] = (),
+) -> int:
+    """Delete mechanism edges of ``source_code`` that the current run did not reproduce, with
+    their provenance links. Edges are re-derived deterministically from stored sources on every
+    run (the sources themselves keep their full lineage in ``source_record``), so a stale edge
+    is one the current source version no longer supports."""
+    from sqlalchemy import delete
+
+    conditions = [model.source_code == source_code, *extra_conditions]
+    if kept_ids:
+        conditions.append(model.id.not_in(kept_ids))
+    stale = [str(i) for i in session.scalars(select(model.id).where(*conditions))]
+    if not stale:
+        return 0
+    session.execute(
+        delete(Provenance).where(
+            Provenance.entity_table == model.__tablename__, Provenance.entity_id.in_(stale)
+        )
+    )
+    session.execute(delete(model).where(model.id.in_([uuid.UUID(i) for i in stale])))
+    return len(stale)
