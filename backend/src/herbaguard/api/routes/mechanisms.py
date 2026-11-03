@@ -7,9 +7,10 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, Path, Query
 from sqlalchemy.orm import Session
 
-from herbaguard.api.schemas.common import ErrorResponse
-from herbaguard.api.schemas.mechanism_core import TargetOut
+from herbaguard.api.schemas.common import ErrorResponse, Page
+from herbaguard.api.schemas.mechanism_core import HerbEffectOut, TargetOut
 from herbaguard.api.schemas.mechanisms import (
+    HerbDrugPairs,
     HerbMechanismGraph,
     MechanismPathsRequest,
     MechanismPathsResponse,
@@ -17,6 +18,7 @@ from herbaguard.api.schemas.mechanisms import (
 )
 from herbaguard.core.config import Settings, get_settings
 from herbaguard.core.db import get_session
+from herbaguard.domain.enums import EvidenceType
 from herbaguard.services import mechanisms as mechanism_service
 
 router = APIRouter()
@@ -95,4 +97,57 @@ def mechanism_paths(
         herb_query=body.herb,
         drug_query=body.drug,
         allow_remote=body.allow_remote_drug_lookup,
+    )
+
+
+@router.get(
+    "/mechanisms/herb-effects",
+    response_model=Page[HerbEffectOut],
+    tags=["mechanisms"],
+    summary="Stored herb/constituent effects on enzymes and transporters, filterable",
+    description="Answers e.g. 'which herbs or compounds affect CYP3A4?' (`target`) or 'which "
+    "relationships rest only on in-vitro evidence?' (`evidence_type=INVITRO`). Every item carries "
+    "its evidence type (study design, not quality), hedging word and provenance.",
+    responses=ERRORS,
+)
+def herb_effects(
+    session: SessionDep,
+    target: Annotated[str | None, Query(pattern=r"^[A-Za-z0-9-]{2,32}$")] = None,
+    evidence_type: Annotated[list[EvidenceType] | None, Query()] = None,
+    effect: Literal["induces", "inhibits", "activates", "other"] | None = None,
+    subject_kind: Literal["herbal_substance", "constituent"] | None = None,
+    wfo_id: Annotated[str | None, Query(pattern=r"^wfo-\d{10}$")] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> Page[HerbEffectOut]:
+    return mechanism_service.list_herb_effects(
+        session,
+        target=target,
+        evidence_types=[e.value for e in evidence_type] if evidence_type else None,
+        effect=effect,
+        subject_kind=subject_kind,
+        wfo_id=wfo_id,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get(
+    "/plants/{wfo_id}/mechanism-pairs",
+    response_model=HerbDrugPairs,
+    tags=["plants", "mechanisms"],
+    summary="Drugs sharing an enzyme/transporter with this herb, each with its mechanism finding",
+    responses=ERRORS,
+)
+def plant_mechanism_pairs(
+    session: SessionDep,
+    wfo_id: WfoId,
+    qualifying_only: Annotated[
+        bool, Query(description="Only pairs whose finding is mechanism_supported")
+    ] = False,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> HerbDrugPairs:
+    return mechanism_service.herb_drug_pairs(
+        session, wfo_id, qualifying_only=qualifying_only, limit=limit, offset=offset
     )

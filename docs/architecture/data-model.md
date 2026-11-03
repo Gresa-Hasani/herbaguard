@@ -120,3 +120,8 @@ The downgrade of 0002 refuses to run when rows use `REV`/`OTHER` (data would vio
 
 The downgrade refuses to run when rows use values introduced in 0003. Populated by `herbaguard ingest mechanisms`; rules for using the edges: [../api/mechanism-paths.md](../api/mechanism-paths.md).
 
+## 8. Changes in migration 0004 (Phase 4 audit)
+
+| Change | Why |
+|---|---|
+| `target_modulation.hedge_wording` (nullable, ≤ 32 chars) | Keep the source's own uncertainty ("may inhibit") with the edge; shown with every effect and path |

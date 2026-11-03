@@ -7,8 +7,10 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from herbaguard.api.schemas.mechanism_core import (
+    DrugRef,
     DrugRoleOut,
     HerbEffectOut,
+    MechanismAssessmentOut,
     MechanismPathOut,
     TargetOut,
 )
@@ -33,7 +35,9 @@ class GraphEdge(BaseModel):
     id: str
     source: str
     target: str
-    kind: Literal["contains", "induces", "inhibits", "activates", "other", "substrate_of"]
+    kind: Literal[
+        "contains", "induces", "inhibits", "activates", "other", "substrate_of", "grouped_as"
+    ]
     label: str
     evidence_type: str | None = None
     statement_ids: list[str] = Field(description="herb_effect / drug_role ids behind this edge")
@@ -60,8 +64,28 @@ class MechanismPathsRequest(BaseModel):
 class MechanismPathsResponse(BaseModel):
     herb: HerbResolution
     drug: DrugResolution
+    assessment: MechanismAssessmentOut
     paths: list[MechanismPathOut]
     qualifying_paths: int
     rules: str
     note: str
     disclaimer: str
+
+
+class HerbDrugPair(BaseModel):
+    """A drug that shares an enzyme/transporter with a herb's stated effects."""
+
+    drug: DrugRef
+    targets: list[str] = Field(description="Enzymes/transporters linking the herb and the drug")
+    assessment: MechanismAssessmentOut
+    paths: list[MechanismPathOut]
+
+
+class HerbDrugPairs(BaseModel):
+    herb: HerbRef
+    items: list[HerbDrugPair]
+    total: int
+    limit: int
+    offset: int
+    note: str
+    rules: str

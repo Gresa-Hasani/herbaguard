@@ -81,3 +81,12 @@ The interaction check (`POST /api/v1/interactions/check`) returns `mechanism_pat
 ## Health and metadata (Phase 1)
 
 `GET /api/v1/health`, `GET /api/v1/health/ready`, `GET /api/v1/meta` (includes the canonical disclaimer).
+
+## Mechanism graph queries (Phase 4 audit)
+
+| Method & path | Purpose |
+|---|---|
+| `GET /api/v1/mechanisms/herb-effects` | Filterable list of stored herb/constituent → enzyme/transporter effects (`target`, `evidence_type` (repeatable), `effect`, `subject_kind`, `wfo_id`, `limit`, `offset`); each with hedging word, evidence type and provenance |
+| `GET /api/v1/plants/{wfo_id}/mechanism-pairs` | Drugs sharing an enzyme/transporter with the herb, each with its mechanism finding and paths (`qualifying_only`, `limit`, `offset`) |
+
+`POST /api/v1/mechanisms/paths` and every `POST /api/v1/interactions/check` result now carry an explicit mechanism finding — see [mechanism-paths.md](mechanism-paths.md) §3.

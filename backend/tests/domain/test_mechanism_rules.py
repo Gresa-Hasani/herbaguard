@@ -139,3 +139,85 @@ def test_mechanism_against_none_reported_shows_disagreement() -> None:
 
 def test_no_mechanism_and_no_statement_stays_no_evidence() -> None:
     assert run([], []).interaction_class is InteractionClass.NO_EVIDENCE_FOUND
+
+
+# --------------------------------------------------------------------------- Phase 4 audit additions
+
+from dataclasses import replace  # noqa: E402
+
+from herbaguard.domain.mechanisms import (  # noqa: E402
+    MechanismFinding,
+    assess_mechanism,
+    conflicting_targets,
+)
+
+
+def finding(paths: list[AssessedPath], *, herb_effects: int = 1, drug_roles: int = 1,
+            resolved: bool = True) -> MechanismFinding:  # fmt: skip
+    return assess_mechanism(
+        herb_resolved=resolved,
+        drug_resolved=resolved,
+        herb_effects_stored=herb_effects,
+        drug_roles_stored=drug_roles,
+        paths=paths,
+    ).finding
+
+
+def test_opposite_authoritative_effects_conflict_and_never_qualify() -> None:
+    effects = [herb("CYP3A4", effect="induces"), herb("CYP3A", effect="inhibits", evidence="GOV",
+                                                       source="fda_cyp_table")]  # fmt: skip
+    assert conflicting_targets(effects) == frozenset({"CYP3A"})
+    paths = assess_paths(effects, [drug("CYP3A")])
+    assert len(paths) == 2 and all(p.conflicting and not p.qualifies for p in paths)
+    assert "both induction and inhibition" in paths[0].reasons_not_qualifying[-1]
+    assert finding(paths) is MechanismFinding.CONFLICTING
+
+
+def test_in_vitro_or_constituent_statements_do_not_create_a_conflict() -> None:
+    effects = [herb("CYP3A4"), herb("CYP3A4", effect="inhibits", evidence="INVITRO"),
+               herb("CYP3A4", effect="inhibits", kind="constituent", label="hyperforin")]  # fmt: skip
+    assert conflicting_targets(effects) == frozenset()
+    paths = assess_paths(effects, [drug("CYP3A")])
+    assert [p.qualifies for p in paths] == [True, False, False]
+    assert finding(paths) is MechanismFinding.MECHANISM_SUPPORTED
+
+
+def test_experimental_only_finding() -> None:
+    paths = assess_paths([herb("CYP2C9", effect="inhibits", evidence="INVITRO")], [drug("CYP2C9")])
+    assert only(paths).experimental
+    assessment = assess_mechanism(herb_resolved=True, drug_resolved=True, herb_effects_stored=1,
+                                  drug_roles_stored=1, paths=paths)  # fmt: skip
+    assert assessment.finding is MechanismFinding.EXPERIMENTAL_ONLY
+    assert "not evidence that the combination is safe" in assessment.explanation
+
+
+def test_shared_enzyme_without_qualifying_path_is_insufficient() -> None:
+    """Two parties on one enzyme (the drug is itself an inhibitor) is not an interaction."""
+    paths = assess_paths([herb("CYP3A4")], [drug("CYP3A", role="inhibitor")])
+    assert finding(paths) is MechanismFinding.INSUFFICIENT
+
+
+def test_no_documented_mechanism_found_explains_why() -> None:
+    def explain(herb_effects: int, drug_roles: int) -> str:
+        a = assess_mechanism(herb_resolved=True, drug_resolved=True, herb_effects_stored=herb_effects,
+                             drug_roles_stored=drug_roles, paths=[])  # fmt: skip
+        assert a.finding is MechanismFinding.NONE_FOUND
+        assert a.explanation.endswith("This is not evidence that the combination is safe.")
+        return a.explanation
+
+    assert "No enzyme or transporter effect of this herb" in explain(0, 3)
+    assert "does not list this drug" in explain(2, 0)
+    assert "not ones FDA lists this drug as a substrate of" in explain(2, 3)
+
+
+def test_unidentified_herb_or_drug_is_not_assessed() -> None:
+    assert finding([], resolved=False) is MechanismFinding.NOT_ASSESSED
+
+
+def test_hedged_wording_is_shown_but_does_not_change_the_rules() -> None:
+    ginkgo = replace(herb("ABCB1", effect="inhibits", label="Ginkgo folium"), hedge="may")
+    path = only(assess_paths([ginkgo], [drug("ABCB1", role="substrate")]))
+    assert path.qualifies
+    text = describe(path)
+    assert text.startswith("Ginkgo folium may inhibit ABCB1")
+    assert "hedged ('may')" in text

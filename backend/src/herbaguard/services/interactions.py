@@ -10,7 +10,7 @@ from datetime import datetime
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from herbaguard.api.schemas.mechanism_core import MechanismPathOut
+from herbaguard.api.schemas.mechanism_core import MechanismAssessmentOut, MechanismPathOut
 from herbaguard.api.schemas.resources import (
     ClassificationOut,
     DrugCheckResult,
@@ -396,6 +396,7 @@ def check(
         api: dict[str, StatementOut] = {}
         mechanisms: list[MechanismPath] = []
         mechanism_paths: list[MechanismPathOut] = []
+        mechanism_assessment: MechanismAssessmentOut = mechanism_service.not_assessed()
         if herb_ok and drug_ok:
             assert resolution.drug is not None  # noqa: S101
             drug = drug_repo.drug_by_rxcui(session, resolution.drug.rxcui)
@@ -405,7 +406,7 @@ def check(
                 session, substance_ids, drug_id=drug.id, class_codes=codes
             )
             domain, api = build_statements(session, rows, drug_matched_id=drug.id)
-            mechanisms, mechanism_paths = mechanism_service.paths_for_pair(
+            mechanisms, mechanism_paths, mechanism_assessment = mechanism_service.paths_for_pair(
                 session, substance_ids, drug.id
             )
         result = classify(
@@ -428,6 +429,7 @@ def check(
                 ],
                 sources_searched=searched,
                 mechanism_paths=mechanism_paths,
+                mechanism_assessment=mechanism_assessment,
                 related_literature={
                     "count": literature or 0,
                     "used_for_classification": False,

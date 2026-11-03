@@ -75,7 +75,7 @@ Representative verified scenarios (live API against the development database):
 ## 5. Known limitations of the rules
 
 1. **Conservative label rule.** 7 pairs move from A to C because their label sentences sit in general warning sections without naming the drug. One is the isotretinoin error the rule was written for; the others (St John's wort with lithium, meperidine, methamphetamine, lisdexamfetamine; echinacea with nimodipine) are probably genuine statements about the label drug that are now under-classified. The sentence remains visible as the decisive statement of the C finding.
-2. **Mechanism-based class B** (Phase 4) depends on FDA's example lists and on recognised monograph sentence forms; see [mechanism-paths.md](mechanism-paths.md) §5. The Phase 3 real-data counts in §4 predate Phase 4.
+2. **Mechanism-based class B** (Phase 4) depends on FDA's example lists and on recognised monograph sentence forms; see [mechanism-paths.md](mechanism-paths.md) §5. The Phase 3 real-data counts in §4 are unchanged by Phase 4 (re-checked 2026-11-03: all 156 pairs keep their class). Pairs without any statement can move from D to B through a qualifying path; on the real data this applies to *Ginkgo folium* + digoxin / fexofenadine (P-gp, hedged "may inhibit") and St John's wort + dabigatran (P-gp).
 3. **Class granularity** depends on RxClass ATC level (mostly level 4); a statement about a level-5 code would not match a level-4 membership.
 4. **Statement types come from Phase 2 sentence rules** (lexicon-bound recall); see `docs/data/pipeline.md` §3.3.
 5. **Ambiguity is only detectable within the curated herb set**: "ginseng" resolves to *Panax ginseng* because *Eleutherococcus senticosus* is not curated; the response warns that a common name was matched.

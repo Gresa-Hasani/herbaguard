@@ -116,4 +116,8 @@ Short records of decisions that shape HerbaGuard. Status values: *Accepted*, *Su
 - **Status:** Accepted (Phase 4)
 - **Decision:** Each `mechanisms` run upserts the edges it derives (deterministic UUIDs) and deletes edges of the same source that it no longer derives, together with their provenance links — only if the run had no error-level issues. The source documents themselves keep full lineage in `source_record` (every page version is kept).
 - **Alternatives:** A `status` column with `superseded` as for interaction assertions (rejected for now: edges are a derived index of stored documents, not statements users cite on their own).
-
+## ADR-020 — Explicit mechanism finding per herb–drug pair
+- **Status:** Accepted (Phase 4 audit, 2026-11-03)
+- **Context:** Phase 4 returned paths and a count of qualifying paths. An empty list could mean "herb not identified", "no herb effect stored", "drug not in FDA's table" or "no shared target", and the paths endpoint showed the mechanism-finding caveat even when there was no path. Opposite statements (induction and inhibition) were not detected.
+- **Decision:** A pure function `assess_mechanism` gives each pair one finding: `mechanism_supported`, `conflicting_mechanism_evidence`, `experimental_mechanism_evidence_only`, `insufficient_mechanism_evidence`, `no_documented_mechanism_found` or `not_assessed`, with an explanation that never implies safety. Rule 7 makes conflicting targets non-qualifying. Only `mechanism_supported` can influence the A–E class (unchanged: B when no statement gives A). Hedged source wording is stored and shown, not scored.
+- **Consequences:** No change to any Phase 3 result. Users can see why a mechanism result is empty. Rules: [../api/mechanism-paths.md](../api/mechanism-paths.md).

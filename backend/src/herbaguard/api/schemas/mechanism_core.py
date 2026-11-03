@@ -51,6 +51,11 @@ class HerbEffectOut(BaseModel):
     potency: str | None = Field(
         description="Strength as stated by the source (FDA: strong/moderate/weak); never computed"
     )
+    hedge_wording: str | None = Field(
+        default=None,
+        description="The source's own hedging word before the effect (e.g. 'may' in 'may inhibit'); "
+        "null if the effect is stated plainly",
+    )
     evidence_type: EvidenceTypeInfo
     source_code: str
     conditions: str | None = Field(description="Use category, dose condition or source footnotes")
@@ -83,4 +88,32 @@ class MechanismPathOut(BaseModel):
         description="True if the path meets every rule in docs/api/mechanism-paths.md"
     )
     reasons_not_qualifying: list[str]
+    conflicting: bool = Field(
+        default=False,
+        description="Authoritative sources state both induction and inhibition of this target for "
+        "the herb",
+    )
+    experimental: bool = Field(
+        default=False, description="The herb-side evidence is in-vitro or animal, not clinical"
+    )
     description: str
+
+
+class MechanismAssessmentOut(BaseModel):
+    """One mechanism finding per herb–drug pair (docs/api/mechanism-paths.md §3)."""
+
+    finding: Literal[
+        "mechanism_supported",
+        "conflicting_mechanism_evidence",
+        "experimental_mechanism_evidence_only",
+        "insufficient_mechanism_evidence",
+        "no_documented_mechanism_found",
+        "not_assessed",
+    ]
+    label: str
+    explanation: str
+    paths_total: int
+    qualifying_paths: int
+    herb_effects_stored: int = Field(description="Enzyme/transporter effects stored for the herb")
+    drug_roles_stored: int = Field(description="Enzyme/transporter roles stored for the drug")
+    rules: str
