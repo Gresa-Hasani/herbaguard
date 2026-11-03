@@ -46,10 +46,17 @@ def test_real_sjw_sentence_gives_induction_of_five_targets() -> None:
     ("sentence", "outcome"),
     [
         # names an enzyme but states no effect of the herb (real EMA wording)
+        # (Phase 4 audit: such sentences are now reported as no_effect_verb and logged for review)
         ("Concomitant use with imatinib and other cytostatic agents metabolised by CYP3A4 is contraindicated.",
-         Outcome.NO_MECHANISM),
+         Outcome.NO_EFFECT_VERB),
         # "inhibitors" is a noun about other drugs
-        ("Concomitant use with CYP3A4 inhibitors should be avoided.", Outcome.NO_MECHANISM),
+        ("Concomitant use with CYP3A4 inhibitors should be avoided.", Outcome.NO_EFFECT_VERB),
+        # real EMA wording (liquorice, ginkgo): an enzyme is named but no direction of effect is stated
+        ("Liquorice root preparations might affect the activity of CYP3A4.", Outcome.NO_EFFECT_VERB),
+        ("Plasma concentrations of efavirenz may be decreased because of induction of CYP3A4.",
+         Outcome.NO_EFFECT_VERB),
+        # no enzyme or transporter at all
+        ("Hyperici herba may reduce the effect of oral contraceptives.", Outcome.NO_MECHANISM),
         # relative clause about other medicines
         ("Medicinal products that inhibit CYP3A4 may increase plasma levels.", Outcome.OTHER_DRUGS),
         # negation
@@ -77,3 +84,32 @@ def test_in_vitro_findings_are_flagged() -> None:
     result = extract_mechanisms("In vitro, Hyperici herba extracts inhibited CYP2C9.", SJW)
     (statement,) = result.statements
     assert statement.study_context == "in_vitro"
+
+
+GINKGO = subject_patterns(["Ginkgo folium"], ["ginkgo", "G. biloba"])
+
+
+def test_hedged_wording_is_kept() -> None:
+    """Real EMA wording (EMA/HMPC/321097/2012, section 4.5): the effect is stated with "may"."""
+    result = extract_mechanisms(
+        "A study indicates that G. biloba may inhibit P-glycoprotein at the intestinal level.",
+        GINKGO,
+    )
+    (statement,) = result.statements
+    assert (statement.effect, statement.targets, statement.hedge) == (
+        ModulationEffect.INHIBITS,
+        ("ABCB1",),
+        "may",
+    )
+
+
+def test_plain_wording_has_no_hedge() -> None:
+    (statement,) = extract_mechanisms(SJW_45, SJW).statements
+    assert statement.hedge is None
+
+
+def test_hedge_word_must_be_a_whole_word() -> None:
+    (statement,) = extract_mechanisms(
+        "To their dismay Hyperici herba preparations induce CYP3A4.", SJW
+    ).statements
+    assert statement.hedge is None

@@ -281,4 +281,66 @@ def test_ema_mechanism_extraction(
         for i in db_session.scalars(select(DataQualityIssue))
         if i.rule == "ema_mechanism_sentence_not_used"
     ]
-    assert not_used and "other_drugs" in not_used[0].message
+    outcomes = {i.message.split(":")[0] for i in not_used}
+    # "Medicinal products that inhibit CYP2D6 ..." (other_drugs) and, since the Phase 4 audit,
+    # "... cytostatic agents metabolised by CYP3A4 ..." (enzyme named, no effect verb)
+    assert outcomes == {"other_drugs", "no_effect_verb"}
+
+
+# --------------------------------------------------------------------------- Phase 4 audit additions
+
+
+def test_fda_prodrug_alias_stores_role_for_the_name_people_use(
+    db_session: Session, settings: Settings, http: HttpClient, herbs: dict[str, HerbalSubstance],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:  # fmt: skip
+    """FDA lists "dabigatran etexilate"; users enter "dabigatran" (another RxNorm ingredient)."""
+    names = {**DRUGS, "dabigatran etexilate": "1037042", "dabigatran": "1546356"}
+    drugs = {}
+    for name, rxcui in names.items():
+        drug = Drug(id=uuid.uuid4(), rxcui=rxcui, name=name)
+        db_session.add(drug)
+        drugs[name] = Ingredient(drug.id, rxcui, name)
+    db_session.flush()
+    monkeypatch.setattr(DrugResolver, "by_name", lambda self, name: drugs.get(name.lower()))
+
+    _run_fda(db_session, settings, http, FIXTURE)
+
+    prodrug = _role(db_session, "dabigatran etexilate", "ABCB1")
+    active = _role(db_session, "dabigatran", "ABCB1")
+    assert (prodrug.role, active.role) == ("substrate", "substrate")
+    assert prodrug.conditions is None
+    assert active.conditions is not None
+    assert active.conditions.startswith("FDA lists dabigatran etexilate; applied to dabigatran")
+    sources = {
+        p.source_record.source_code
+        for p in db_session.scalars(
+            select(Provenance).where(Provenance.entity_id == str(active.id))
+        )
+    }
+    assert sources == {"fda_cyp_table", "herbaguard_curated"}
+
+
+def test_ema_hedged_effect_keeps_its_wording(
+    db_session: Session, settings: Settings, http: HttpClient, herbs: dict[str, HerbalSubstance]
+) -> None:
+    _ema_section(
+        db_session,
+        herbs["st_johns_wort"],
+        "Hyperici herba preparations may inhibit CYP2D6. Hyperici herba preparations might "
+        "affect the activity of CYP1A2.",
+    )
+    with run_ingestion(db_session, "ema_hmpc", settings, http=http) as ctx:
+        mechanisms.run_ema(ctx, ["st_johns_wort"])
+    rows = db_session.execute(
+        select(Target.symbol, TargetModulation.effect, TargetModulation.hedge_wording)
+        .join(Target, Target.id == TargetModulation.target_id)
+        .where(TargetModulation.source_code == "ema_hmpc")
+    ).all()
+    assert {tuple(r) for r in rows} == {("CYP2D6", "inhibits", "may")}
+    logged = [
+        i.context.get("sentence")
+        for i in db_session.scalars(select(DataQualityIssue))
+        if i.rule == "ema_mechanism_sentence_not_used"
+    ]
+    assert logged == ["Hyperici herba preparations might affect the activity of CYP1A2."]

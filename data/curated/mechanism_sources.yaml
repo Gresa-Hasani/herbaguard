@@ -11,7 +11,11 @@
 #      kind: out_of_scope → not stored; reported as an info-level data-quality issue
 # 2. fda_skip_patterns: drug-name patterns that are skipped with a reason instead of being sent to
 #    RxNorm (combination regimens, single enantiomers).
-# 3. ema_subject_terms: extra words that identify a herb as the subject of an EMA sentence, in
+# 3. fda_drug_aliases: a table row names a prodrug or salt that RxNorm keeps as a separate
+#    ingredient from the name people use. The row's roles are stored for the listed ingredient too,
+#    with the reason as a condition and this file as additional provenance. Added only where FDA
+#    itself uses the other name for the same substance (Phase 4 audit, 2026-11-03).
+# 4. ema_subject_terms: extra words that identify a herb as the subject of an EMA sentence, in
 #    addition to the first word of its EMA Latin name and generic words ("preparation", "extract").
 version: 1
 fda_non_drug_rows:
@@ -36,6 +40,13 @@ fda_non_drug_rows:
 fda_skip_patterns:
   - {pattern: '\band\b', reason: "Combination regimen (e.g. 'atazanavir and ritonavir'): the effect belongs to the combination, not to one ingredient."}
   - {pattern: '^[RS]-', reason: "Single enantiomer (e.g. 'S-mephenytoin'): RxNorm ingredients do not distinguish enantiomers reliably."}
+fda_drug_aliases:
+  - fda_name: dabigatran etexilate
+    also_for: [dabigatran]
+    note: >-
+      FDA's table row names the prodrug dabigatran etexilate (RxCUI 1037042); FDA's own legend
+      (Table 3) uses "dabigatran" as the P-gp clinical substrate. RxNorm keeps dabigatran
+      (RxCUI 1546356) as a separate ingredient.
 ema_subject_terms:
   st_johns_wort: [hypericum, "St John's wort"]
   ginkgo: [ginkgo, "G. biloba"]   # EMA 4.5: "... indicates that G. biloba may inhibit P-glycoprotein ..."

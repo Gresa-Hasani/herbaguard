@@ -19,6 +19,11 @@ test, a false edge would silently create mechanism-based "potential interaction"
    ``normalize/targets.py`` ("CYP" prefix required).
 5. Sentences reporting in-vitro or animal findings are flagged (``study_context``) so the edge is
    stored with that evidence type and can never support class B.
+6. A modal word directly before the verb ("may inhibit", "might induce", "can inhibit") is kept as
+   ``hedge`` and stored with the edge, so the source's own uncertainty stays visible.
+7. Sentences that name an enzyme/transporter without a recognised effect verb ("might affect the
+   activity of CYP3A4", "because of induction of CYP3A4") give ``no_effect_verb``; the pipeline
+   logs them for review instead of dropping them silently.
 """
 
 from __future__ import annotations
@@ -43,6 +48,10 @@ _OTHER_DRUGS_CLAUSE = re.compile(
     r"(that|which|known to)\s*$",
     re.IGNORECASE,
 )
+_HEDGE_BEFORE = re.compile(
+    r"\b(?P<hedge>may|might|could|can|possibly|probably|potentially)\s+(?:also\s+)?$",
+    re.IGNORECASE,
+)
 _NEGATION_BEFORE = re.compile(r"\b(not|no|neither|nor|without)\s+(\w+\s+){0,2}$", re.IGNORECASE)
 _GENERIC_SUBJECTS = (r"preparations?", r"extracts?", r"herbal", r"herbal substances?")
 # Phase 0 principle 2: in-vitro / animal findings are not clinical evidence. A monograph sentence
@@ -61,6 +70,7 @@ class Outcome(StrEnum):
     SUBJECT_UNCLEAR = "subject_unclear"
     OTHER_DRUGS = "other_drugs"  # the verb belongs to a clause about other medicines
     NEGATED = "negated"
+    NO_EFFECT_VERB = "no_effect_verb"  # names an enzyme/transporter, but no induce/inhibit verb
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,6 +80,7 @@ class MechanismStatement:
     target_labels: tuple[str, ...]  # source wording, e.g. "CYP3A4", "P-glycoprotein"
     sentence: str  # verbatim
     study_context: str | None = None  # "in_vitro" | "animal" when the sentence says so
+    hedge: str | None = None  # modal word before the verb, lower case ("may", "might")
 
 
 def study_context(sentence: str) -> str | None:
@@ -100,11 +111,13 @@ def subject_patterns(latin_names: list[str], terms: list[str]) -> list[str]:
 def extract_mechanisms(sentence: str, subject_names: list[str]) -> SentenceResult:
     """Apply the rules in the module docstring to one sentence."""
     verbs = list(_VERB.finditer(sentence))
-    if not verbs or not find_targets(sentence):
+    if not find_targets(sentence):
         return SentenceResult(Outcome.NO_MECHANISM)
+    if not verbs:
+        return SentenceResult(Outcome.NO_EFFECT_VERB)
     subject = re.compile(r"\b(" + "|".join(subject_names) + r")", re.IGNORECASE)
     result = SentenceResult(Outcome.NO_MECHANISM)
-    rejected = Outcome.NO_MECHANISM
+    rejected = Outcome.NO_EFFECT_VERB
     for index, match in enumerate(verbs):
         before = sentence[: match.start()]
         if _OTHER_DRUGS_CLAUSE.search(before):
@@ -121,6 +134,7 @@ def extract_mechanisms(sentence: str, subject_names: list[str]) -> SentenceResul
         if not mentions:
             continue
         word = (match.group("verb") or match.group("noun") or "").lower()
+        hedge = _HEDGE_BEFORE.search(before)
         effect = ModulationEffect.INDUCES if word.startswith("induc") else ModulationEffect.INHIBITS
         symbols: list[str] = []
         for mention in mentions:
@@ -134,6 +148,7 @@ def extract_mechanisms(sentence: str, subject_names: list[str]) -> SentenceResul
                 target_labels=tuple(m.verbatim for m in mentions),
                 sentence=sentence,
                 study_context=study_context(sentence),
+                hedge=hedge.group("hedge").lower() if hedge else None,
             )
         )
     result.outcome = Outcome.EXTRACTED if result.statements else rejected

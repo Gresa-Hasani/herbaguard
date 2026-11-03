@@ -288,6 +288,21 @@ class _FdaRun:
         if ingredient is None:
             self.ctx.stats["fda_rows_drug_unresolved"] += 1  # issue recorded by the resolver
             return
+        self.store_roles(row, ingredient.drug_id)
+        alias = self.config.drug_alias(row.name)
+        for name in alias.also_for if alias else []:
+            other = self.resolver.by_name(name)
+            if other is None or other.drug_id == ingredient.drug_id:
+                continue
+            assert alias is not None  # noqa: S101 - loop is empty otherwise
+            self.store_roles(
+                row,
+                other.drug_id,
+                alias_note=f"FDA lists {row.name_verbatim}; applied to {name}: {alias.note}",
+            )
+            self.ctx.stats["drug_roles_via_alias"] += 1
+
+    def store_roles(self, row: Row, drug_id: uuid.UUID, alias_note: str | None = None) -> None:
         for entry in row.entries:
             for symbol in entry.targets:
                 target_id = self.targets.get(symbol)
@@ -300,14 +315,15 @@ class _FdaRun:
                         row=row.name_verbatim,
                     )
                     continue
+                footnotes = _footnotes(self.table, row.footnote_refs, entry.footnote_refs)
                 role_id = upsert_drug_role(
                     self.ctx.session,
-                    drug_id=ingredient.drug_id,
+                    drug_id=drug_id,
                     target_id=target_id,
                     role=entry.column.role.value,
                     source_code=FDA_SOURCE,
                     potency=entry.column.potency.value if entry.column.potency else None,
-                    conditions=_footnotes(self.table, row.footnote_refs, entry.footnote_refs),
+                    conditions="; ".join(c for c in (footnotes, alias_note) if c) or None,
                     evidence_item_id=self.evidence_id,
                 )
                 self.ctx.provenance(
@@ -319,6 +335,16 @@ class _FdaRun:
                     location=_location(row, entry),
                     excerpt=_excerpt(row, entry),
                 )
+                if alias_note:
+                    self.ctx.provenance(
+                        "drug_target_role",
+                        role_id,
+                        self.curated_record(),
+                        METHOD_FDA,
+                        version=PARSER_VERSION,
+                        location=f"fda_drug_aliases: {row.name_verbatim}",
+                        excerpt=alias_note,
+                    )
                 self.kept_roles.add(role_id)
                 self.ctx.stats[f"drug_roles_{entry.column.role.value}"] += 1
 
@@ -579,6 +605,7 @@ def _ema_herb(
                     Outcome.SUBJECT_UNCLEAR,
                     Outcome.OTHER_DRUGS,
                     Outcome.NEGATED,
+                    Outcome.NO_EFFECT_VERB,
                 ):
                     ctx.issue(
                         "ema_mechanism_sentence_not_used",
@@ -613,6 +640,7 @@ def _ema_herb(
                                 effect=statement.effect.value,
                                 evidence_type=evidence_type.value,
                                 potency=None,
+                                hedge_wording=statement.hedge,
                                 conditions=conditions,
                                 source_code=EMA_SOURCE,
                                 evidence_item_id=item.id,

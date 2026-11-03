@@ -142,11 +142,22 @@ class SkipPattern(BaseModel):
     reason: str
 
 
+class FdaDrugAlias(BaseModel):
+    fda_name: str
+    also_for: list[str] = Field(min_length=1)
+    note: str
+
+
 class MechanismSources(BaseModel):
     version: int
     fda_non_drug_rows: list[FdaNonDrugRow]
     fda_skip_patterns: list[SkipPattern] = Field(default_factory=list)
+    fda_drug_aliases: list[FdaDrugAlias] = Field(default_factory=list)
     ema_subject_terms: dict[str, list[str]] = Field(default_factory=dict)
+
+    def drug_alias(self, name: str) -> FdaDrugAlias | None:
+        key = name.strip().lower()
+        return next((a for a in self.fda_drug_aliases if a.fda_name.lower() == key), None)
 
     def non_drug_row(self, name: str) -> FdaNonDrugRow | None:
         key = name.strip().lower()

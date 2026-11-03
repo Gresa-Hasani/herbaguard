@@ -7,11 +7,13 @@ from collections.abc import Sequence
 
 from sqlalchemy.orm import Session
 
+from herbaguard.api.schemas.common import Page
 from herbaguard.api.schemas.mechanism_core import (
     ROLE_LABELS,
     DrugRef,
     DrugRoleOut,
     HerbEffectOut,
+    MechanismAssessmentOut,
     MechanismPathOut,
     TargetOut,
     TargetRef,
@@ -19,6 +21,8 @@ from herbaguard.api.schemas.mechanism_core import (
 from herbaguard.api.schemas.mechanisms import (
     GraphEdge,
     GraphNode,
+    HerbDrugPair,
+    HerbDrugPairs,
     HerbMechanismGraph,
     MechanismPathsResponse,
     TargetDetail,
@@ -29,11 +33,14 @@ from herbaguard.core.errors import AmbiguousEntityError, NotFoundError
 from herbaguard.domain.enums import SUBSTRATE_ROLES
 from herbaguard.domain.interactions import MechanismPath
 from herbaguard.domain.mechanisms import (
+    MATCH_GROUP,
     MECHANISM_CAVEAT,
     RULES_VERSION,
     AssessedPath,
     DrugRole,
     HerbEffect,
+    MechanismAssessment,
+    assess_mechanism,
     assess_paths,
     describe,
 )
@@ -90,6 +97,7 @@ def _effects_out(session: Session, rows: Sequence[repo.EffectRow]) -> list[HerbE
                 target=target_ref(row.target),
                 effect=m.effect,
                 potency=m.potency,
+                hedge_wording=m.hedge_wording,
                 evidence_type=EvidenceTypeInfo.of(m.evidence_type, m.source_code),
                 source_code=m.source_code,
                 conditions=m.conditions,
@@ -133,6 +141,7 @@ def _domain_effect(row: repo.EffectRow) -> HerbEffect:
         subject_kind=row.subject_kind,
         subject_label=row.subject_label,
         conditions=m.conditions,
+        hedge=m.hedge_wording,
     )
 
 
@@ -148,18 +157,82 @@ def _domain_role(row: repo.RoleRow) -> DrugRole:
     )
 
 
+def assessment_out(
+    assessment: MechanismAssessment, *, herb_effects: int, drug_roles: int
+) -> MechanismAssessmentOut:
+    return MechanismAssessmentOut(
+        finding=assessment.finding.value,
+        label=assessment.label,
+        explanation=assessment.explanation,
+        paths_total=assessment.paths_total,
+        qualifying_paths=assessment.qualifying_paths,
+        herb_effects_stored=herb_effects,
+        drug_roles_stored=drug_roles,
+        rules=RULES_VERSION,
+    )
+
+
+def not_assessed() -> MechanismAssessmentOut:
+    """For a pair whose herb or drug is not identified."""
+    result = assess_mechanism(
+        herb_resolved=False,
+        drug_resolved=False,
+        herb_effects_stored=0,
+        drug_roles_stored=0,
+        paths=[],
+    )
+    return assessment_out(result, herb_effects=0, drug_roles=0)
+
+
 def paths_for_pair(
     session: Session, substance_ids: list[uuid.UUID], drug_id: uuid.UUID
-) -> tuple[list[MechanismPath], list[MechanismPathOut]]:
+) -> tuple[list[MechanismPath], list[MechanismPathOut], MechanismAssessmentOut]:
     """All assessed paths for a herb–drug pair: the qualifying ones as domain input for
-    ``classify`` and every path for the API response.
-
-    A herb with several species (e.g. hawthorn) has one effect row per substance; paths are
-    de-duplicated on (source statement wording, target, effect, drug role)."""
+    ``classify``, every path for the API response, and the pair's mechanism finding."""
     effect_rows = repo.herb_effects(session, substance_ids)
     role_rows = repo.drug_roles(session, drug_id=drug_id)
+    return _pair(session, effect_rows, role_rows)
+
+
+def _pair(
+    session: Session, effect_rows: Sequence[repo.EffectRow], role_rows: Sequence[repo.RoleRow]
+) -> tuple[list[MechanismPath], list[MechanismPathOut], MechanismAssessmentOut]:
+    """A herb with several species (e.g. hawthorn) has one effect row per substance; paths are
+    de-duplicated on (source statement wording, target, effect, drug role)."""
+    distinct_effects = {
+        (r.subject_label, r.target.symbol, r.modulation.effect, r.modulation.source_code,
+         r.modulation.evidence_item_id)
+        for r in effect_rows
+    }  # fmt: skip
+
+    def finish(
+        unique: list[AssessedPath], api: list[MechanismPathOut]
+    ) -> tuple[list[MechanismPath], list[MechanismPathOut], MechanismAssessmentOut]:
+        assessment = assess_mechanism(
+            herb_resolved=True,
+            drug_resolved=True,
+            herb_effects_stored=len(distinct_effects),
+            drug_roles_stored=len(role_rows),
+            paths=unique,
+        )
+        domain = [
+            MechanismPath(
+                target_symbol=p.target_symbols,
+                herb_effect=p.herb.effect,
+                drug_role=p.drug.role,
+                source=f"{p.herb.source_code} + {p.drug.source_code}",
+                description=describe(p),
+            )
+            for p in unique
+            if p.qualifies
+        ]
+        out = assessment_out(
+            assessment, herb_effects=len(distinct_effects), drug_roles=len(role_rows)
+        )
+        return domain, api, out
+
     if not effect_rows or not role_rows:
-        return [], []
+        return finish([], [])
     effects_by_id = {str(r.modulation.id): r for r in effect_rows}
     roles_by_id = {str(r.role.id): r for r in role_rows}
     assessed = assess_paths(
@@ -191,22 +264,13 @@ def paths_for_pair(
             drug_role=roles_out[p.drug.id],
             qualifies_for_class_b=p.qualifies,
             reasons_not_qualifying=list(p.reasons_not_qualifying),
+            conflicting=p.conflicting,
+            experimental=p.experimental,
             description=describe(p),
         )
         for p in unique
     ]
-    domain = [
-        MechanismPath(
-            target_symbol=p.target_symbols,
-            herb_effect=p.herb.effect,
-            drug_role=p.drug.role,
-            source=f"{p.herb.source_code} + {p.drug.source_code}",
-            description=describe(p),
-        )
-        for p in unique
-        if p.qualifies
-    ]
-    return domain, api
+    return finish(unique, api)
 
 
 # --------------------------------------------------------------------------- endpoints
@@ -320,6 +384,18 @@ def herb_graph(session: Session, wfo_id: str, *, include_drugs: bool) -> HerbMec
                 GraphEdge(id=edge_id, source=drug_id, target=target_id, kind="substrate_of",
                           label=ROLE_LABELS.get(r.role.role, r.role.role), statement_ids=[]),
             ).statement_ids.append(str(r.role.id))  # fmt: skip
+    for symbol, group_symbol in MATCH_GROUP.items():
+        member, grouped = f"target:{symbol}", f"target:{group_symbol}"
+        if member in nodes and grouped in nodes:
+            edge_id = f"{member}-grouped_as->{grouped}"
+            edges[edge_id] = GraphEdge(
+                id=edge_id,
+                source=member,
+                target=grouped,
+                kind="grouped_as",
+                label=f"{symbol} is part of FDA's grouped {group_symbol}",
+                statement_ids=[],
+            )
     return HerbMechanismGraph(
         herb=herb,
         nodes=list(nodes.values()),
@@ -344,19 +420,131 @@ def paths(
         )
     drug = drug_service.resolve(session, settings, drug_query, allow_remote=allow_remote)
     api: list[MechanismPathOut] = []
+    assessment = not_assessed()
     if herb.status == "resolved" and herb.herb is not None and drug.drug is not None:
         substance_ids = [
             s.id for s in plant_repo.herb_group(session, herb.herb.pharmaceutical_name)
         ]
         stored = drug_repo.drug_by_rxcui(session, drug.drug.rxcui)
         if stored is not None:
-            _, api = paths_for_pair(session, substance_ids, stored.id)
+            _, api, assessment = paths_for_pair(session, substance_ids, stored.id)
+    qualifying = sum(1 for p in api if p.qualifies_for_class_b)
     return MechanismPathsResponse(
         herb=herb,
         drug=drug,
+        assessment=assessment,
         paths=api,
-        qualifying_paths=sum(1 for p in api if p.qualifies_for_class_b),
+        qualifying_paths=qualifying,
         rules=RULES_VERSION,
-        note=f"{PATHS_NOTE} {MECHANISM_CAVEAT}",
+        note=f"{PATHS_NOTE} {MECHANISM_CAVEAT}" if qualifying else PATHS_NOTE,
         disclaimer=DISCLAIMER,
+    )
+
+
+# --------------------------------------------------------------------------- graph queries
+
+
+def list_herb_effects(
+    session: Session,
+    *,
+    target: str | None,
+    evidence_types: list[str] | None,
+    effect: str | None,
+    subject_kind: str | None,
+    wfo_id: str | None,
+    limit: int,
+    offset: int,
+) -> Page[HerbEffectOut]:
+    """Every stored herb/constituent effect on an enzyme or transporter, filterable — e.g. all
+    effects on CYP3A4, or all effects that rest only on in-vitro evidence."""
+    if wfo_id is not None:
+        taxon = plant_repo.get_taxon(session, wfo_id)
+        if taxon is None:
+            raise NotFoundError(f"No plant with WFO ID {wfo_id}.")
+        substances = plant_repo.substances_for_taxa(session, [taxon.id])
+        group = (
+            plant_repo.herb_group(session, substances[0].pharmaceutical_name or "")
+            if substances
+            else []
+        )
+        rows = repo.herb_effects(session, [s.id for s in group])
+    else:
+        rows = repo.effects_on_targets(
+            session, [t.id for t, _, _ in repo.targets_with_counts(session)]
+        )
+    if target is not None:
+        wanted = target.upper()
+        if repo.get_target(session, wanted) is None:
+            raise NotFoundError(f"No enzyme or transporter with symbol {target}.")
+        rows = [r for r in rows if r.target.symbol.upper() == wanted]
+    if evidence_types:
+        rows = [r for r in rows if r.modulation.evidence_type in evidence_types]
+    if effect is not None:
+        rows = [r for r in rows if r.modulation.effect == effect]
+    if subject_kind is not None:
+        rows = [r for r in rows if r.subject_kind == subject_kind]
+    # one item per stored statement (species of one herb share the statement)
+    unique: dict[uuid.UUID, repo.EffectRow] = {}
+    for row in sorted(rows, key=lambda r: (r.subject_label, r.target.symbol, str(r.modulation.id))):
+        unique.setdefault(row.modulation.id, row)
+    ordered = list(unique.values())
+    return Page[HerbEffectOut](
+        items=_effects_out(session, ordered[offset : offset + limit]),
+        total=len(ordered),
+        limit=limit,
+        offset=offset,
+    )
+
+
+def herb_drug_pairs(
+    session: Session, wfo_id: str, *, qualifying_only: bool, limit: int, offset: int
+) -> HerbDrugPairs:
+    """Drugs that share an enzyme/transporter with this herb's stated effects, each with its
+    mechanism finding. Answers "which herb–drug pairs have mechanism evidence" for one herb."""
+    taxon = plant_repo.get_taxon(session, wfo_id)
+    if taxon is None:
+        raise NotFoundError(f"No plant with WFO ID {wfo_id}.")
+    substances = plant_repo.substances_for_taxa(session, [taxon.id])
+    if not substances:
+        raise NotFoundError(f"No herbal substance for {wfo_id}.")
+    herb = plant_service.herb_ref(substances[0])
+    group = plant_repo.herb_group(session, substances[0].pharmaceutical_name or "")
+    effect_rows = repo.herb_effects(session, [s.id for s in group] or [s.id for s in substances])
+    symbols = {r.target.symbol for r in effect_rows}
+    symbols |= {MATCH_GROUP[s] for s in symbols if s in MATCH_GROUP}
+    symbols |= {member for member, grouped in MATCH_GROUP.items() if grouped in symbols}
+    role_rows = repo.drug_roles(
+        session, target_ids=[t.id for t in repo.targets_by_symbols(session, sorted(symbols))]
+    )
+    by_drug: dict[uuid.UUID, list[repo.RoleRow]] = {}
+    for row in role_rows:
+        by_drug.setdefault(row.drug.id, []).append(row)
+    pairs: list[HerbDrugPair] = []
+    for rows in by_drug.values():
+        # all roles of the drug, so "the drug is an inhibitor, not a substrate" stays visible
+        _, api, assessment = _pair(
+            session, effect_rows, repo.drug_roles(session, drug_id=rows[0].drug.id)
+        )
+        if not api or (qualifying_only and not assessment.qualifying_paths):
+            continue
+        pairs.append(
+            HerbDrugPair(
+                drug=DrugRef(rxcui=rows[0].drug.rxcui, name=rows[0].drug.name),
+                targets=sorted({p.target_symbols for p in api}),
+                assessment=assessment,
+                paths=api,
+            )
+        )
+    pairs.sort(key=lambda p: (-p.assessment.qualifying_paths, p.drug.name))
+    return HerbDrugPairs(
+        herb=herb,
+        items=pairs[offset : offset + limit],
+        total=len(pairs),
+        limit=limit,
+        offset=offset,
+        note="Drugs FDA lists as substrates, inhibitors or inducers of an enzyme/transporter this herb "
+        "affects. Sharing an enzyme or transporter alone does not establish an interaction: only "
+        "pairs whose assessment is 'mechanism_supported' meet the rules. FDA lists examples only; a "
+        "drug that is not listed may still be affected.",
+        rules=RULES_VERSION,
     )

@@ -144,6 +144,8 @@ class TargetModulation(Base):
     conditions: Mapped[str | None] = mapped_column(Text)  # e.g. dose threshold wording
     source_code: Mapped[str] = mapped_column(ForeignKey("source.code"))
     potency: Mapped[str | None] = mapped_column(String(16))  # Potency value, as stated
+    # Modal word before the effect verb in the source ("may", "might"); NULL = stated plainly.
+    hedge_wording: Mapped[str | None] = mapped_column(String(32))  # migration 0004
     evidence_item_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("evidence_item.id", ondelete="CASCADE"), index=True
     )

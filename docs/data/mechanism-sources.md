@@ -42,3 +42,9 @@ The mechanism layer needs two kinds of statements:
 - Enzyme/transporter roles of drugs that the FDA table does not list.
 - Effects of herbs other than St John's wort that EMA monographs do not state in a recognised sentence form (sentences that name an enzyme but are not used are listed as `ema_mechanism_sentence_not_used` issues, so recall can be reviewed).
 - Pharmacodynamic interactions (e.g. serotonergic, anticoagulant effects) — these stay with the statement-based classes A/C.
+
+## 4. Changes from the Phase 4 audit (2026-11-03)
+
+- **Prodrug alias.** FDA's row is *dabigatran etexilate* (RxCUI 1037042); users enter *dabigatran* (RxCUI 1546356, a separate RxNorm ingredient), so St John's wort + dabigatran found no path. `fda_drug_aliases` in `data/curated/mechanism_sources.yaml` stores the row's roles for *dabigatran* as well, with the reason as a condition and the curated file as a second provenance record.
+- **Hedging.** Modal words before the effect verb ("may", "might", "could", "can", "possibly", "probably", "potentially") are stored in `target_modulation.hedge_wording`.
+- **Review log.** Sentences that name an enzyme/transporter but have no recognised induce/inhibit verb are now logged (`ema_mechanism_sentence_not_used`, outcome `no_effect_verb`); previously they were dropped without a record. Real run: 10 such sentences.

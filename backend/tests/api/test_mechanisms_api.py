@@ -287,3 +287,109 @@ def test_paths_endpoint(mech: object, api: TestClient) -> None:
 def test_paths_endpoint_rejects_ambiguous_herb(mech: object, api: TestClient) -> None:
     response = api.post("/api/v1/mechanisms/paths", json={"herb": "ginseng", "drug": "midazolam"})
     assert response.status_code == 409
+
+
+# --------------------------------------------------------------------------- Phase 4 audit additions
+
+
+@pytest.mark.parametrize(
+    ("herb", "drug", "finding", "qualifying"),
+    [
+        ("St John's wort", "midazolam", "mechanism_supported", 2),
+        ("St John's wort", "ketoconazole", "insufficient_mechanism_evidence", 0),  # drug inhibits
+        ("Turmeric", "rosuvastatin", "insufficient_mechanism_evidence", 0),  # constituent only
+        ("St John's wort", "metformin", "no_documented_mechanism_found", 0),  # not in FDA table
+        ("Hawthorn", "midazolam", "no_documented_mechanism_found", 0),  # no herb effect stored
+        ("zzz-unknown-herb", "midazolam", "not_assessed", 0),
+    ],
+)
+def test_every_pair_gets_an_explicit_mechanism_finding(
+    mech: object, check: Check, herb: str, drug: str, finding: str, qualifying: int
+) -> None:
+    assessment = result_for(check(herb, [drug]), drug)["mechanism_assessment"]
+    assert (assessment["finding"], assessment["qualifying_paths"]) == (finding, qualifying)
+    if finding not in {"mechanism_supported", "not_assessed"}:
+        assert assessment["explanation"].endswith("not evidence that the combination is safe.")
+
+
+def test_paths_endpoint_without_paths_has_no_mechanism_caveat(
+    mech: object, api: TestClient
+) -> None:
+    body = api.post(
+        "/api/v1/mechanisms/paths", json={"herb": "Hawthorn", "drug": "midazolam"}
+    ).json()
+    assert body["paths"] == [] and body["qualifying_paths"] == 0
+    assert body["assessment"]["finding"] == "no_documented_mechanism_found"
+    assert body["assessment"]["herb_effects_stored"] == 0
+    assert "Mechanism-based finding" not in body["note"]
+    unknown = api.post(
+        "/api/v1/mechanisms/paths", json={"herb": "St John's wort", "drug": "zzz-not-a-drug"}
+    ).json()
+    assert unknown["assessment"]["finding"] == "not_assessed"
+
+
+def test_herb_effects_listing_filters(mech: object, api: TestClient) -> None:
+    on_cyp3a4 = api.get("/api/v1/mechanisms/herb-effects", params={"target": "CYP3A4"}).json()
+    assert on_cyp3a4["total"] == 1
+    (item,) = on_cyp3a4["items"]
+    assert (item["herb"], item["effect"], item["hedge_wording"]) == (
+        "Hyperici herba",
+        "induces",
+        None,
+    )
+    assert item["provenance"][0]["excerpt"] == SJW_SENTENCE
+    constituents = api.get(
+        "/api/v1/mechanisms/herb-effects", params={"subject_kind": "constituent"}
+    ).json()
+    assert [(i["subject_label"], i["target"]["symbol"]) for i in constituents["items"]] == [
+        ("curcumin", "ABCG2")
+    ]
+    in_vitro = api.get(
+        "/api/v1/mechanisms/herb-effects", params={"evidence_type": "INVITRO"}
+    ).json()
+    assert in_vitro["total"] == 0  # nothing in the seed rests on in-vitro evidence
+    by_herb = api.get("/api/v1/mechanisms/herb-effects", params={"wfo_id": SJW_WFO}).json()
+    assert by_herb["total"] == 4
+    assert (
+        api.get("/api/v1/mechanisms/herb-effects", params={"target": "CYP9Z9"}).status_code == 404
+    )
+    bad = api.get("/api/v1/mechanisms/herb-effects", params={"evidence_type": "QUALITY"})
+    assert bad.status_code == 422
+
+
+def test_mechanism_pairs_for_a_herb(mech: object, api: TestClient) -> None:
+    body = api.get(f"/api/v1/plants/{SJW_WFO}/mechanism-pairs").json()
+    findings = {p["drug"]["name"]: p["assessment"]["finding"] for p in body["items"]}
+    assert findings == {
+        "digoxin": "mechanism_supported",
+        "midazolam": "mechanism_supported",
+        "warfarin": "mechanism_supported",
+        "ketoconazole": "insufficient_mechanism_evidence",
+    }
+    assert "does not establish an interaction" in body["note"]
+    supported = api.get(
+        f"/api/v1/plants/{SJW_WFO}/mechanism-pairs", params={"qualifying_only": True, "limit": 2}
+    ).json()
+    assert supported["total"] == 3 and len(supported["items"]) == 2
+    assert api.get("/api/v1/plants/wfo-0000000001/mechanism-pairs").status_code == 404
+
+
+def test_herb_graph_links_cyp3a4_to_fda_grouped_cyp3a(mech: object, api: TestClient) -> None:
+    body = api.get(f"/api/v1/plants/{SJW_WFO}/mechanisms").json()
+    kinds = {(e["source"], e["kind"], e["target"]) for e in body["edges"]}
+    assert ("target:CYP3A4", "grouped_as", "target:CYP3A") in kinds
+
+
+def test_hedged_herb_effect_is_shown_in_paths(
+    mech: object, db_session: Session, check: Check
+) -> None:
+    for m in db_session.scalars(
+        select(TargetModulation).where(TargetModulation.source_code == "ema_hmpc")
+    ):
+        m.hedge_wording = "may"
+    db_session.flush()
+    r = result_for(check("St John's wort", ["digoxin"]), "digoxin")
+    (path,) = r["mechanism_paths"]
+    assert path["herb_effect"]["hedge_wording"] == "may"
+    assert path["description"].startswith("Hyperici herba may induce ABCB1")
+    assert path["qualifies_for_class_b"] is True  # B already means "potential"
