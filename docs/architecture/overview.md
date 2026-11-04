@@ -40,7 +40,7 @@ backend/src/herbaguard/
 ├── ingestion/         Source registry, CLI; connectors/adapters/normalisers from Phase 2
 ├── repositories/      Data access (SQL only): plants, drugs, evidence, interactions
 ├── services/          Use cases: herb/drug resolution, evidence, coverage, interaction check
-└── ai/                (planned, Phase 5) retrieval, LLM client, citation validation
+└── ai/                (Phase 5) guardrails, rank fusion, prompts, citation validation, extractive answers, Ollama client
 ```
 
 Dependency rules:

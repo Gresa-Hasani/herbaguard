@@ -21,6 +21,11 @@ class LogFormat(StrEnum):
     JSON = "json"
 
 
+class AssistantProvider(StrEnum):
+    OLLAMA = "ollama"
+    NONE = "none"
+
+
 DISCLAIMER = (
     "HerbaGuard provides information from scientific and regulatory sources. "
     "It is not medical advice and does not replace your doctor or pharmacist. "
@@ -64,6 +69,23 @@ class Settings(BaseSettings):
     http_user_agent: str = "HerbaGuard/0.1 (+https://github.com/Gresa-Hasani/herbaguard; EthnoHack 2026 research prototype)"
     http_timeout_seconds: float = Field(default=30.0, gt=0)
     contact_email: str | None = None
+
+    # AI evidence assistant (Phase 5, ADR-009/021). "ollama" = local model, falls back to the
+    # extractive answer whenever Ollama is unreachable; "none" = extractive answers only.
+    assistant_provider: AssistantProvider = AssistantProvider.OLLAMA
+    ollama_base_url: str = Field(
+        default="http://127.0.0.1:11434",
+        description="Inside Docker Compose: http://host.docker.internal:11434",
+    )
+    ollama_chat_model: str = "qwen2.5:3b"
+    ollama_embed_model: str = Field(
+        default="all-minilm", description="Must return 384-d vectors (chunk.embedding)"
+    )
+    ollama_timeout_seconds: float = Field(default=180.0, gt=0)
+    ollama_num_ctx: int = Field(default=8192, ge=2048, le=131072)
+    ollama_max_answer_tokens: int = Field(default=400, ge=64, le=4096)
+    ollama_keep_alive: str = "10m"
+    assistant_max_passages: int = Field(default=6, ge=1, le=12)
 
     @field_validator("log_level")
     @classmethod
