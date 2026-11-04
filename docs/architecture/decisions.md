@@ -56,9 +56,12 @@ Short records of decisions that shape HerbaGuard. Status values: *Accepted*, *Su
 - **Context:** On the development machine, ports 5432, 5433, 8000 and 8010 were taken by other projects' containers.
 - **Decision:** Defaults `5455` (db), `18010` (api), `18080` (web), bound to `127.0.0.1`, all overridable in `.env`. Connection strings use `127.0.0.1`, not `localhost`: on Windows, `localhost` resolved to IPv6 first and each connection stalled about 5 seconds before falling back.
 
-## ADR-009 — LLM provider
+## ADR-009 — LLM provider: local Ollama, extractive fallback
 
-- **Status:** **Pending** — user decision required before Phase 5 (hosted API key, local Ollama, or extractive-only). The architecture supports all three behind one interface; extractive-only mode will always be available.
+- **Status:** Accepted (Phase 5, 2026-11-04 — team decision)
+- **Context:** Options were a hosted API (best quality, paid key, questions leave the machine), a local model via Ollama (free, private, CPU-only on the development machine) or extractive-only (no generation). Judges must be able to run the app without a key.
+- **Decision:** Local Ollama (`/api/chat`, default `qwen2.5:3b`, temperature 0, fixed seed) behind a small `ChatModel` protocol. Extractive mode (verbatim quotes with citations) is always available and is used automatically when Ollama is unreachable, when the user asks for it, or when a generated answer fails citation validation twice. `HERBAGUARD_ASSISTANT_PROVIDER=none` disables generation entirely.
+- **Consequences:** No API key and no data leaves the machine. Answer quality is limited by a 3B model on CPU and latency is several seconds to tens of seconds; the citation validator, not the model, is what guarantees grounding. A hosted provider can be added as another `ChatModel` without changing the service.
 
 ## ADR-010 — Python packaging with pip
 
@@ -121,3 +124,12 @@ Short records of decisions that shape HerbaGuard. Status values: *Accepted*, *Su
 - **Context:** Phase 4 returned paths and a count of qualifying paths. An empty list could mean "herb not identified", "no herb effect stored", "drug not in FDA's table" or "no shared target", and the paths endpoint showed the mechanism-finding caveat even when there was no path. Opposite statements (induction and inhibition) were not detected.
 - **Decision:** A pure function `assess_mechanism` gives each pair one finding: `mechanism_supported`, `conflicting_mechanism_evidence`, `experimental_mechanism_evidence_only`, `insufficient_mechanism_evidence`, `no_documented_mechanism_found` or `not_assessed`, with an explanation that never implies safety. Rule 7 makes conflicting targets non-qualifying. Only `mechanism_supported` can influence the A–E class (unchanged: B when no statement gives A). Hedged source wording is stored and shown, not scored.
 - **Consequences:** No change to any Phase 3 result. Users can see why a mechanism result is empty. Rules: [../api/mechanism-paths.md](../api/mechanism-paths.md).
+## ADR-021 — Embeddings from Ollama (`all-minilm`, 384-d) instead of sentence-transformers
+- **Status:** Accepted (Phase 5)
+- **Context:** The schema reserved `chunk.embedding vector(384)` for `bge-small-en-v1.5` via sentence-transformers. That adds PyTorch (~1 GB) to the API image, and ADR-009 already requires Ollama.
+- **Decision:** Embed with an Ollama embedding model returning 384 dimensions (default `all-minilm`), so no migration is needed. `herbaguard ai embed` fills the column (resumable; records `embedding_model`); vector search only uses chunks embedded with the configured model. Until chunks are embedded, retrieval is full-text only and the status endpoint says so.
+- **Consequences:** One runtime dependency (Ollama) for generation and embeddings. `all-minilm` is a general-domain model; full-text search (exact drug names) and entity filtering compensate. Changing to a model with another dimension needs a migration.
+## ADR-022 — Assistant guardrails are deterministic and run before the model
+- **Status:** Accepted (Phase 5)
+- **Decision:** (1) Emergency wording → fixed referral text, no retrieval or generation. (2) Dosing questions → fixed "no individual dosing advice" text plus the posology passages, no generation. (3) Ambiguous herb names → clarification with candidates. (4) Interaction classes come only from `domain/interactions.py` via the interaction check and are given to the model as facts; an answer that names a class the rules did not compute is rejected. (5) Every citation must resolve to a retrieved passage, ≥60 % of factual sentences must be cited, and PMIDs/DOIs/URLs must appear in the passages; safety assertions ("is safe to take") are rejected. One regeneration, then the extractive answer. (6) Retrieved text is fenced as data and the model is told to ignore instructions in it.
+- **Consequences:** Behaviour on the safety-relevant paths does not depend on the model and is pinned by tests (`tests/ai`, `tests/api/test_assistant_api.py`). Pattern-based screening can miss unusual phrasings; the persistent disclaimer and referral text are shown on every answer.

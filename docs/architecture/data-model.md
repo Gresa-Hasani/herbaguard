@@ -90,7 +90,7 @@ The schema follows four rules from the Phase 0 research (`docs/research/scientif
 - Timestamps: `timestamptz`, `created_at` / `updated_at` set by the database.
 - Vocabularies: `text` columns + CHECK constraints (simpler to evolve than native ENUM types). The allowed values live in `herbaguard/domain/enums.py`.
 - Constraint names follow a deterministic convention (`pk_`, `fk_`, `uq_`, `ck_`, `ix_`) that stays within PostgreSQL's 63-character limit; a test enforces this.
-- Embedding dimension 384 matches the embedding model planned for Phase 5 (`bge-small-en-v1.5`). Choosing a model with another dimension requires a migration.
+- Embedding dimension 384 matches the Phase 5 embedding model (`all-minilm` via Ollama, ADR-021; `bge-small-en-v1.5` was the original plan). `embedding_model` records which model produced each vector; vector search uses only vectors from the configured model. Choosing a model with another dimension requires a migration.
 - `alembic check` in CI verifies that models and migrations agree.
 
 ## 5. Known limitations of schema v1

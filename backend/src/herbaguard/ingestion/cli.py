@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from sqlalchemy import text
@@ -303,6 +303,182 @@ def ema_report() -> None:
             + " | ".join(cells)
             + f" | {extraction['document_token_coverage']:.4f} |"
         )
+
+
+# --------------------------------------------------------------------------- AI assistant (Phase 5)
+
+ai_app = typer.Typer(help="AI evidence assistant: embeddings, status, evaluation (Phase 5).")
+app.add_typer(ai_app, name="ai")
+
+
+def _eval_file() -> Path:
+    from herbaguard.ingestion.curation import CURATED_DIR
+
+    return CURATED_DIR / "assistant_eval.yaml"
+
+
+@ai_app.command("status")
+def ai_status() -> None:
+    """Show the LLM provider, model availability and embedding coverage."""
+    from herbaguard.services.assistant import status
+
+    settings = get_settings()
+    session = get_session_factory()()
+    try:
+        state = status(session, settings)
+    finally:
+        session.close()
+    typer.echo(state.model_dump_json(indent=2))
+
+
+@ai_app.command("embed")
+def ai_embed(
+    batch_size: Annotated[int, typer.Option(min=1, max=256)] = 32,
+    force: Annotated[
+        bool, typer.Option(help="Re-embed chunks that already have a vector.")
+    ] = False,
+) -> None:
+    """Embed every chunk with the configured Ollama embedding model (resumable)."""
+    from herbaguard.ai.llm import LLMUnavailableError, OllamaEmbedder
+    from herbaguard.models.evidence import EMBEDDING_DIMENSION
+    from herbaguard.repositories import retrieval
+
+    settings = get_settings()
+    configure_logging(settings)
+    embedder = OllamaEmbedder(settings, dimension=EMBEDDING_DIMENSION)
+    session = get_session_factory()()
+    done = 0
+    started = time.perf_counter()
+    try:
+        seen: set[object] = set()
+        while True:
+            rows = retrieval.chunks_to_embed(
+                session, model=embedder.name, limit=batch_size, force=force
+            )
+            rows = [r for r in rows if r[0] not in seen]
+            if not rows:
+                break
+            texts = [
+                f"{title}. {section or ''}\n{body}".strip() for _, body, section, title in rows
+            ]
+            try:
+                vectors = embedder.embed(texts)
+            except LLMUnavailableError as exc:
+                session.rollback()
+                typer.echo(f"Embedding failed after {done} chunks: {exc}", err=True)
+                raise typer.Exit(code=1) from exc
+            retrieval.store_embeddings(
+                session,
+                [(r[0], v) for r, v in zip(rows, vectors, strict=True)],
+                model=embedder.name,
+            )
+            session.commit()
+            seen.update(r[0] for r in rows)
+            done += len(rows)
+            typer.echo(f"  embedded {done} chunks")
+        embedded, total = retrieval.embedding_counts(session, model=embedder.name)
+    finally:
+        session.close()
+    typer.echo(
+        f"Done in {time.perf_counter() - started:.1f}s: {embedded}/{total} chunks embedded "
+        f"with {embedder.name}."
+    )
+
+
+@ai_app.command("ask")
+def ai_ask(
+    question: str,
+    herb: Annotated[str | None, typer.Option()] = None,
+    drug: Annotated[list[str] | None, typer.Option()] = None,
+    extractive: Annotated[bool, typer.Option(help="Never call the LLM.")] = False,
+) -> None:
+    """Ask the assistant from the command line (prints the JSON response)."""
+    from herbaguard.api.schemas.assistant import AssistantRequest
+    from herbaguard.services import assistant
+
+    settings = get_settings()
+    configure_logging(settings)
+    request = AssistantRequest(
+        question=question, herb=herb, drugs=drug or [], mode="extractive" if extractive else "auto"
+    )
+    session = get_session_factory()()
+    try:
+        response = assistant.ask(
+            session,
+            settings,
+            request,
+            chat_model=assistant.chat_model_for(settings),
+            embedder=assistant.embedder_for(settings),
+        )
+        session.rollback()  # the assistant never writes; discard autobegun state
+    finally:
+        session.close()
+    typer.echo(response.model_dump_json(indent=2))
+
+
+@ai_app.command("eval")
+def ai_eval(
+    file: Annotated[Path | None, typer.Option(exists=True, dir_okay=False)] = None,
+    extractive: Annotated[bool, typer.Option(help="Evaluate extractive mode only.")] = False,
+    output: Annotated[Path | None, typer.Option(help="Write responses + scores as JSON.")] = None,
+) -> None:
+    """Run the fixed evaluation set; exits 1 if any citation is fabricated or a check fails."""
+    import json
+    from dataclasses import asdict
+
+    import yaml
+
+    from herbaguard.ai.evaluation import EvalItem, score, summarise
+    from herbaguard.api.schemas.assistant import AssistantRequest
+    from herbaguard.services import assistant
+
+    settings = get_settings()
+    configure_logging(settings)
+    raw = yaml.safe_load((file or _eval_file()).read_text(encoding="utf-8"))
+    items = [EvalItem.from_mapping(i) for i in raw["items"]]
+    chat_model = None if extractive else assistant.chat_model_for(settings)
+    embedder = assistant.embedder_for(settings)
+    session = get_session_factory()()
+    responses: list[dict[str, Any]] = []
+    scores = []
+    try:
+        for item in items:
+            request = AssistantRequest(
+                question=item.question,
+                herb=item.herb,
+                drugs=item.drugs,
+                mode="extractive" if extractive else "auto",
+            )
+            started = time.perf_counter()
+            response = assistant.ask(
+                session, settings, request, chat_model=chat_model, embedder=embedder
+            ).model_dump(mode="json")
+            session.rollback()
+            result = score(item, response)
+            responses.append({"id": item.id, "response": response, "checks": result.checks})
+            scores.append(result)
+            mark = "PASS" if result.passed else "FAIL"
+            typer.echo(
+                f"[{mark}] {item.id:<32} mode={result.mode:<22} "
+                f"{time.perf_counter() - started:5.1f}s {'; '.join(result.details)}"
+            )
+    finally:
+        session.close()
+    summary = summarise(scores, [r["response"] for r in responses])
+    typer.echo(
+        f"\n{summary.passed}/{summary.items} items passed | citation precision "
+        f"{summary.citation_precision:.3f} | fabricated citations {summary.fabricated_citations} "
+        f"| safety claims {summary.safety_claims} | mode accuracy {summary.mode_accuracy:.2f}"
+    )
+    if output is not None:
+        output.write_text(
+            json.dumps(
+                {"summary": asdict(summary), "items": responses}, indent=2, ensure_ascii=False
+            ),
+            encoding="utf-8",
+        )
+    if summary.fabricated_citations or summary.passed < summary.items:
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":
