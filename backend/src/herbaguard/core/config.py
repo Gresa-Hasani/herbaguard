@@ -81,6 +81,12 @@ class Settings(BaseSettings):
     ollama_embed_model: str = Field(
         default="all-minilm", description="Must return 384-d vectors (chunk.embedding)"
     )
+    ollama_embed_max_chars: int = Field(
+        default=800,
+        ge=200,
+        le=20000,
+        description="Text sent to the embedding model is cut to this length (all-minilm: 256 tokens)",
+    )
     ollama_timeout_seconds: float = Field(default=180.0, gt=0)
     ollama_num_ctx: int = Field(default=8192, ge=2048, le=131072)
     ollama_max_answer_tokens: int = Field(default=400, ge=64, le=4096)

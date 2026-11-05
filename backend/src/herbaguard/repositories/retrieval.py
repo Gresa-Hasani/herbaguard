@@ -45,17 +45,22 @@ def full_text_search(
     *,
     substance_ids: Sequence[uuid.UUID] | None,
     limit: int,
+    source_codes: Sequence[str] | None = None,
 ) -> list[uuid.UUID]:
-    """Chunk ids, best first, ranked by ``ts_rank_cd`` over the generated tsvector."""
+    """Chunk ids, best first, ranked by ``ts_rank_cd`` over the generated tsvector;
+    optionally only chunks of evidence from ``source_codes``."""
     text = tsquery_text(terms)
     if text is None:
         return []
     query = func.to_tsquery("english", text)
     rank = func.ts_rank_cd(Chunk.search_vector, query)
+    conditions = _filters(substance_ids)
+    if source_codes:
+        conditions.append(EvidenceItem.source_code.in_(list(source_codes)))
     stmt = (
         select(Chunk.id)
         .join(EvidenceItem, EvidenceItem.id == Chunk.evidence_item_id)
-        .where(Chunk.search_vector.op("@@")(query), *_filters(substance_ids))
+        .where(Chunk.search_vector.op("@@")(query), *conditions)
         .order_by(rank.desc(), Chunk.id)
         .limit(limit)
     )

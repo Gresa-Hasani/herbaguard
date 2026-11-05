@@ -70,6 +70,7 @@ logger = structlog.get_logger(__name__)
 
 RetrievalKind = Literal["interaction_result", "full_text", "vector"]
 FTS_CANDIDATES = 30
+OFFICIAL_SOURCES = frozenset({"ema_hmpc", "nccih", "openfda_label", "fda_cyp_table"})
 VECTOR_CANDIDATES = 30
 EXCERPT_CHARS = 900
 DOSING_TERMS = ["posology", "dose", "dosage", "daily", "method", "administration", "duration"]
@@ -253,6 +254,15 @@ def retrieve(
     terms = content_terms(question) + [t for n in entities.names() for t in content_terms(n)]
     terms += extra_terms or []
     fts = repo.full_text_search(session, terms, substance_ids=scope, limit=FTS_CANDIDATES)
+    # Regulatory and government documents get their own ranking, so that hundreds of PubMed
+    # abstracts cannot crowd the monograph, fact sheet or label out of the passages.
+    fts_official = repo.full_text_search(
+        session,
+        terms,
+        substance_ids=scope,
+        limit=FTS_CANDIDATES,
+        source_codes=sorted(OFFICIAL_SOURCES),
+    )
 
     vectors: list[uuid.UUID] = []
     if embedder is not None:
@@ -277,12 +287,12 @@ def retrieve(
             )
 
     pinned = repo.chunks_for_evidence(session, findings.pinned_evidence)
-    fused = [chunk_id for chunk_id, _ in reciprocal_rank_fusion([fts, vectors])]
+    fused = [chunk_id for chunk_id, _ in reciprocal_rank_fusion([fts_official, fts, vectors])]
     rows = repo.passages(session, list(dict.fromkeys(pinned + fused)))
     sources: dict[uuid.UUID, list[RetrievalKind]] = {}
     lists: list[tuple[RetrievalKind, list[uuid.UUID]]] = [
         ("interaction_result", pinned),
-        ("full_text", fts),
+        ("full_text", fts_official + fts),
         ("vector", vectors),
     ]
     for label, ids in lists:
@@ -357,6 +367,7 @@ def _extractive(question: str, retrieved: Retrieved, entities: Entities, finding
             title=retrieved.rows[uuid.UUID(c.chunk_id)].evidence.title,
             text=retrieved.rows[uuid.UUID(c.chunk_id)].chunk.text,
             pinned=c.pinned,
+            official=retrieved.rows[uuid.UUID(c.chunk_id)].evidence.source_code in OFFICIAL_SOURCES,
         )
         for i, c in enumerate(retrieved.candidates, start=1)
     ]

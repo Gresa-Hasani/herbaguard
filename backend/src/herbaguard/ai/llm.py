@@ -14,7 +14,10 @@ from typing import Any, Protocol
 
 import httpx
 
+from herbaguard.ai.text import truncate
 from herbaguard.core.config import Settings
+
+MIN_EMBED_CHARS = 200
 
 
 class LLMUnavailableError(RuntimeError):
@@ -126,14 +129,35 @@ class OllamaEmbedder:
     ) -> None:
         self.name = settings.ollama_embed_model
         self.dimension = dimension
+        self.max_chars = settings.ollama_embed_max_chars
         self._client = client or _client(settings, settings.ollama_timeout_seconds)
 
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
+        """Embed texts, shortened client-side to the model's window.
+
+        Small embedding models have short context windows (``all-minilm``: 256 tokens) and some
+        Ollama versions reject longer input instead of truncating it. Texts are cut at a word
+        boundary to ``max_chars``; if the server still reports a context overflow, the limit
+        is halved and the batch retried (down to 200 characters). Full-text search still sees
+        the whole chunk.
+        """
         if not texts:
             return []
-        data = _post(
-            self._client, "/api/embed", {"model": self.name, "input": list(texts), "truncate": True}
-        )
+        limit = self.max_chars
+        while True:
+            batch = [truncate(t, limit) for t in texts]
+            try:
+                data = _post(
+                    self._client,
+                    "/api/embed",
+                    {"model": self.name, "input": batch, "truncate": True},
+                )
+                break
+            except LLMUnavailableError as exc:
+                if "context length" not in str(exc) or limit <= MIN_EMBED_CHARS:
+                    raise
+                limit = max(MIN_EMBED_CHARS, limit // 2)
+        self.max_chars = limit  # remember what worked for the next batch
         vectors = data.get("embeddings")
         if not isinstance(vectors, list) or len(vectors) != len(texts):
             msg = "Ollama /api/embed returned the wrong number of embeddings"
