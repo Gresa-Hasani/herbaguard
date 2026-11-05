@@ -103,3 +103,31 @@ def test_status_lists_models() -> None:
         raise httpx.ConnectError("refused", request=request)
 
     assert not ollama_status(SETTINGS, client=_client(httpx.MockTransport(down))).reachable
+
+
+def test_embedder_shortens_input_until_it_fits() -> None:
+    sizes: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        texts = json.loads(request.content)["input"]
+        sizes.append(max(len(t) for t in texts))
+        if any(len(t) > 300 for t in texts):  # a model with a short context window
+            return httpx.Response(
+                400, json={"error": "the input length exceeds the context length"}
+            )
+        return httpx.Response(200, json={"embeddings": [[0.0] * 384 for _ in texts]})
+
+    embedder = OllamaEmbedder(SETTINGS, dimension=384, client=_client(httpx.MockTransport(handler)))
+    long_text = "cytochrome induction " * 200
+    assert len(embedder.embed([long_text, "short"])) == 2
+    assert sizes[0] <= 800 + 2 and sizes[-1] <= 300
+    assert embedder.max_chars <= 300  # the working limit is kept for the next batch
+
+    def always_too_long(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(400, json={"error": "the input length exceeds the context length"})
+
+    stubborn = OllamaEmbedder(
+        SETTINGS, dimension=384, client=_client(httpx.MockTransport(always_too_long))
+    )
+    with pytest.raises(LLMUnavailableError, match="context length"):
+        stubborn.embed([long_text])

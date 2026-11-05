@@ -87,6 +87,10 @@ def test_truncate_marks_cut() -> None:
         ("Can ginkgo lower the seizure threshold?", QuestionKind.EVIDENCE),
         ("Does hawthorn cause chest pain in studies?", QuestionKind.EVIDENCE),
         ("St John's wort and emergency contraception", QuestionKind.EVIDENCE),
+        ("Can I take ginseng with my blood pressure tablets?", QuestionKind.EVIDENCE),
+        ("Can I take 600 mg of St John's wort?", QuestionKind.DOSING),
+        ("Should I take two capsules of valerian?", QuestionKind.DOSING),
+        ("Should I double my dose of ginkgo?", QuestionKind.DOSING),
         ("???", QuestionKind.EMPTY),
     ],
 )
@@ -215,6 +219,20 @@ def test_extractive_quotes_are_verbatim_and_cited() -> None:
     check = check_answer(text, ["S1", "S2"], reference_text=REFERENCE)
     assert not check.unknown and check.cited
     assert any("contraceptive" in q.sentence for q in quotes)
+
+
+def test_extractive_prefers_official_wording_on_equal_overlap() -> None:
+    abstract = "Hormonal contraceptives were studied with St John's wort in 16 women."
+    official = "The efficacy of hormonal contraceptives may be reduced by St John's wort."
+    quotes = best_quotes(
+        "St John's wort and hormonal contraceptives",
+        [
+            ExtractivePassage("S1", "PubMed", abstract),
+            ExtractivePassage("S2", "EMA 4.5", official, official=True),
+        ],
+        max_quotes=1,
+    )
+    assert [q.marker for q in quotes] == ["S2"]
 
 
 def test_extractive_falls_back_to_first_sentence() -> None:

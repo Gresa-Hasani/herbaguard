@@ -50,7 +50,10 @@ _DOSING = [
     r"\bhow (?:much|many)\b.*\b(?:take|use|give|drink|have|dose|capsules?|tablets?|mg|grams?|cups?|drops?)\b",
     r"\bwhat (?:is the |'?s the )?(?:right |correct |safe |recommended |best |maximum |max )?(?:dose|dosage|amount)\b",
     r"\b(?:dose|dosage|posology)\b.*\b(?:should|for me|can i|do i|my)\b",
-    r"\b(?:should|can|may) i (?:take|use|give|double|increase|decrease|reduce)\b.*\b(?:mg|grams?|capsules?|tablets?|doses?|times a day|daily)\b",
+    # An amount must be asked about: "can I take 600 mg", "should I take two capsules".
+    # "Can I take ginseng with my blood pressure tablets?" is an interaction question.
+    r"\b(?:should|can|may|could) i (?:take|use|give|have)\s+(?:\d+|one|two|three|four|five|more|less|extra|another|a second|a higher|a lower|a bigger|a double)\b",
+    r"\b(?:double|increase|decrease|reduce|lower|raise) (?:my|the|his|her) (?:dose|dosage|amount)\b",
     r"\bhow (?:often|long) should i (?:take|use)\b",
     r"\bmaximum (?:daily )?(?:dose|amount)\b",
 ]

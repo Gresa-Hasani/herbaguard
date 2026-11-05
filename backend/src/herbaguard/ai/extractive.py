@@ -19,6 +19,7 @@ class ExtractivePassage:
     title: str
     text: str
     pinned: bool = False
+    official: bool = False  # regulatory/government document (EMA, NCCIH, FDA)
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,6 +70,8 @@ def best_quotes(
             score = _score(sentence, terms, entity_terms)
             if passage.pinned:
                 score += 2.0
+            if passage.official and score > 0:
+                score += 1.0  # prefer the official wording over a study abstract
             score -= rank * 0.05  # prefer better-ranked passages on ties
             scored.append(Quote(passage.marker, truncate(sentence, max_sentence_chars), score))
         scored.sort(key=lambda q: -q.score)
