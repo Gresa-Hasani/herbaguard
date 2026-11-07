@@ -15,7 +15,7 @@ from typing import Any
 
 import structlog
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from herbaguard.ai import context as ctx
 from herbaguard.ai.embeddings import EmbeddingProvider
@@ -27,6 +27,13 @@ from herbaguard.ai.guardrails import (
     REFERRAL,
     QuestionKind,
     screen,
+)
+from herbaguard.ai.mentions import (
+    CONSISTENT_FLAGS,
+    STUDY_ORDER,
+    pair_negation,
+    study_type,
+    tagged_span,
 )
 from herbaguard.ai.providers.base import ProviderError
 from herbaguard.ai.providers.registry import GenerationChain
@@ -57,12 +64,14 @@ from herbaguard.models import (
     EvidenceItem,
     ExperimentalObservation,
     ExternalEntity,
+    ExternalRelation,
     HerbalSubstance,
     Source,
     SourceRecord,
     Target,
 )
 from herbaguard.repositories import mechanisms as mechanism_repo
+from herbaguard.repositories.external import DDID, LIVERTOX, SUPP_AI, resolved_entity_ids
 from herbaguard.services import evidence as evidence_service
 from herbaguard.services import interactions as interaction_service
 from herbaguard.services import mechanisms as mechanism_service
@@ -144,6 +153,10 @@ def _ask(
         analysis.intent = (
             Intent.PLANT_INFORMATION if analysis.herbs and not analysis.drugs else analysis.intent
         )
+    if analysis.ambiguous and dosing:
+        # A dosing request is declined whatever the plant; an ambiguous name is never resolved just to
+        # quote posology, so no herb-specific passage is shown (and no unscoped retrieval runs).
+        return _dosing_decline_without_herb(question, analysis)
     if analysis.ambiguous:
         mention = analysis.ambiguous[0]
         raise AmbiguousEntityError(
@@ -179,6 +192,7 @@ def _ask(
                 items += [ctx.mechanism_path_item(p) for p in result.mechanism_paths[:6]]
             for drug in analysis.drugs[:MAX_DRUGS_PER_QUESTION]:
                 items += _experimental_observations(session, herb, drug)
+                items += _supplementary_mentions(session, herb, drug)
 
     # 2. herb and target mechanism context (stored effects with their hedging and study type)
     if not analysis.drugs:
@@ -202,6 +216,11 @@ def _ask(
         for drug in analysis.drugs[:MAX_DRUGS_PER_QUESTION]:
             if (fact := _drug_roles_fact(session, drug.drug_id, drug.name)) is not None:
                 items.append(fact)
+
+    # 2b. LiverTox hepatotoxicity evidence: liver questions only, resolved herb mappings only
+    if analysis.herbs and LIVER_QUESTION.search(question):
+        for herb in analysis.herbs[:MAX_HERBS_PER_QUESTION]:
+            items += _hepatotoxicity_items(session, herb)
 
     # 3. catalogue facts
     if analysis.intent in (Intent.DATA_COVERAGE, Intent.SOURCE_PROVENANCE):
@@ -265,6 +284,116 @@ def _ask(
 
 # --------------------------------------------------------------------------- helpers
 
+# Questions about liver injury (LiverTox context is used for these only).
+LIVER_QUESTION = re.compile(
+    r"\b(liver|livers|hepat\w*|jaundice|cholesta\w*|cirrho\w*|dili|transaminases?|livertox)\b", re.I
+)
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z(])")
+LIVERTOX_PASSAGE_CHARS = 900
+
+
+def _first_passage(text: str, limit: int = LIVERTOX_PASSAGE_CHARS) -> tuple[str, bool]:
+    """Leading whole sentences of ``text`` up to ``limit`` characters (at least one sentence); never
+    cut inside a sentence. Returns (passage, whether the text continues)."""
+    out: list[str] = []
+    for sentence in _SENTENCE_END.split(text.strip()):
+        if out and len(" ".join([*out, sentence])) > limit:
+            return " ".join(out), True
+        out.append(sentence)
+    return " ".join(out), False
+
+
+def _livertox_provenance(
+    record: SourceRecord, source: Source, method: str, location: str
+) -> ProvenanceOut:
+    return ProvenanceOut(source_code=source.code, source_name=source.name, licence=source.licence,
+                         licence_status=source.licence_status, retrieved_url=record.url,
+                         retrieved_at=record.retrieved_at, source_version=record.content_sha256[:12],
+                         extraction_method=method, location=location, excerpt=None)  # fmt: skip
+
+
+def _hepatotoxicity_items(session: Session, herb: Any) -> list[ctx.ContextItem]:
+    """LiverTox evidence for a resolved herb: the published likelihood assessments (master list and
+    chapter, both shown when they differ) and the opening of the chapter's Hepatotoxicity section.
+    Only LiverTox agents mapped to the herb's species by a resolved (exact, reviewed) name match are
+    used. Without one, a fact states that having no record is not evidence of safety."""
+    herb_name = herb.herb.common_name or herb.herb.pharmaceutical_name
+    taxa = select(HerbalSubstance.taxon_id).where(HerbalSubstance.id.in_(herb.substance_ids))
+    agents = session.execute(
+        select(ExternalEntity, SourceRecord, Source)
+        .join(SourceRecord, SourceRecord.id == ExternalEntity.source_record_id)
+        .join(Source, Source.code == ExternalEntity.source_code)
+        .where(ExternalEntity.id.in_(resolved_entity_ids(LIVERTOX, "taxon", taxa)),
+               ExternalEntity.kind == "livertox_agent")
+        .order_by(ExternalEntity.external_id)
+    ).all()  # fmt: skip
+    if not agents:
+        return [ctx.fact_item(
+            f"HerbaGuard has no LiverTox record mapped to {herb_name} by a confirmed name match. This can "
+            "mean that LiverTox has no entry for it or that its entry could not be matched unambiguously. "
+            "It does not show that the herb is safe for the liver or free of liver risk.",
+            source_code=LIVERTOX, priority=22)]  # fmt: skip
+
+    items: list[ctx.ContextItem] = []
+    for rank, (agent, master_record, source) in enumerate(agents[:2]):
+        row = agent.attributes or {}
+        chapter_row = session.execute(
+            select(ExternalEntity, SourceRecord)
+            .join(ExternalRelation, ExternalRelation.object_id == ExternalEntity.id)
+            .join(SourceRecord, SourceRecord.id == ExternalEntity.source_record_id)
+            .where(ExternalRelation.subject_id == agent.id, ExternalRelation.predicate == "described_in")
+        ).first()  # fmt: skip
+        master_score = str(row.get("Likelihood Score") or "not given").strip()
+        rows = ", ".join(map(str, agent.source_row_numbers[:3]))
+        sources = [_livertox_provenance(master_record, source, "livertox_masterlist_v1",
+                                        f"{master_record.native_id}, row(s) {rows}")]  # fmt: skip
+        parts = [f"LiverTox entry '{agent.label}' (LiverTox classification: "
+                 f"{row.get('Primary Classification', 'not stated')}). LiverTox master list likelihood score: "
+                 f"{master_score} (master list last updated {row.get('Last Update', 'not stated')})."]  # fmt: skip
+        extra = ["mapped to the herb's species by a resolved name match; the plant part or preparation "
+                 "LiverTox describes may differ"]  # fmt: skip
+        chapter = None
+        url = None
+        if chapter_row is not None:
+            chapter, chapter_record = chapter_row
+            attrs = chapter.attributes or {}
+            url = attrs.get("url")
+            statements = [x["statement"] for x in attrs.get("likelihood", [])]
+            parts.append(f"LiverTox chapter '{chapter.label}' (updated {attrs.get('updated_on') or 'not stated'}) "
+                         + (f"states: {' '.join(st + '.' for st in statements)}" if statements
+                            else "states no likelihood score."))  # fmt: skip
+            sources.append(
+                _livertox_provenance(
+                    chapter_record, source, "livertox_nxml_v1", chapter_record.native_id
+                )
+            )
+            scores = {x["score"].replace(" ", "").upper() for x in attrs.get("likelihood", [])}
+            if scores and master_score.replace(" ", "").upper() not in scores:
+                parts.append("The master list and the chapter give different scores; LiverTox publishes both "
+                             "and HerbaGuard does not choose between them.")  # fmt: skip
+                extra.append(
+                    "LiverTox master list and chapter assessments differ; both shown as published"
+                )
+        else:
+            parts.append("No LiverTox chapter is linked to this entry in HerbaGuard.")
+        items.append(ctx.hepatotoxicity_item(
+            text=" ".join(parts), title=f"LiverTox: {chapter.label if chapter is not None else agent.label}",
+            location="likelihood assessment (master list and chapter)", url=url,
+            external_id=chapter.external_id if chapter is not None else agent.external_id,
+            provenance=sources, extra_qualifiers=extra, priority=22 + rank))  # fmt: skip
+        if chapter is None:
+            continue
+        section = ((chapter.attributes or {}).get("sections") or {}).get("hepatotoxicity")
+        if section:
+            passage, more = _first_passage(section)
+            items.append(ctx.hepatotoxicity_item(
+                text=passage, title=f"LiverTox: {chapter.label}",
+                location="Hepatotoxicity section, opening passage" + (" (continues in the chapter)" if more else ""),
+                url=url, external_id=chapter.external_id, provenance=sources[-1:],
+                extra_qualifiers=["verbatim LiverTox text"], priority=24 + rank))  # fmt: skip
+    return items
+
+
 MAX_OBSERVATIONS_PER_PAIR = 4
 _CONTEXT_ORDER = {"human": 0, "animal": 1, "unknown": 2}
 
@@ -274,23 +403,17 @@ def _experimental_observations(session: Session, herb: Any, drug: Any) -> list[c
     to the herb's species and drug entries mapped to the drug. They are context only; the A–E class
     never uses them. Human records first, then records with a PMID."""
     taxa = select(HerbalSubstance.taxon_id).where(HerbalSubstance.id.in_(herb.substance_ids))
-    herb_entities = select(ExternalEntity.id).where(
-        ExternalEntity.mapped_table == "taxon",
-        ExternalEntity.mapped_id.in_(taxa),
-        ExternalEntity.mapping_status
-        == "resolved",  # candidates (synonym matches) need review first
-    )
-    drug_entities = select(ExternalEntity.id).where(
-        ExternalEntity.mapped_table == "drug",
-        ExternalEntity.mapped_id == drug.drug_id,
-        ExternalEntity.mapping_status == "resolved",
-    )
+    # DDID only, resolved mappings only: other external datasets (SUPP.AI, LiverTox, NIH DSLD) and
+    # candidate/ambiguous/unresolved entities can never enter this context.
+    herb_entities = resolved_entity_ids(DDID, "taxon", taxa)
+    drug_entities = resolved_entity_ids(DDID, "drug", [drug.drug_id])
     rows = session.execute(
         select(ExperimentalObservation, ExternalEntity, SourceRecord, Source)
         .join(ExternalEntity, ExternalEntity.id == ExperimentalObservation.interactant_entity_id)
         .join(SourceRecord, SourceRecord.id == ExperimentalObservation.source_record_id)
         .join(Source, Source.code == ExperimentalObservation.source_code)
-        .where(ExperimentalObservation.interactant_entity_id.in_(herb_entities),
+        .where(ExperimentalObservation.source_code == DDID,
+               ExperimentalObservation.interactant_entity_id.in_(herb_entities),
                ExperimentalObservation.drug_entity_id.in_(drug_entities))
     ).all()  # fmt: skip
     if not rows:
@@ -354,6 +477,119 @@ def _experimental_observations(session: Session, herb: Any, drug: Any) -> list[c
     return items
 
 
+# --------------------------------------------------------------------------- SUPP.AI mentions
+
+MAX_MENTIONS_PER_PAIR = 3
+# After every other kind of evidence (statements 5/35, mechanisms 10/30, excerpts 20+, DDID 23-28,
+# LiverTox 22-25, facts 25-40): mentions only fill slots and tokens that nothing stronger uses.
+MENTION_PRIORITY = 60
+
+
+def _supplementary_mentions(session: Session, herb: Any, drug: Any) -> list[ctx.ContextItem]:
+    """SUPP.AI interaction mentions for a herb–drug pair: only when the SUPP.AI supplement is mapped
+    to the herb's species and the SUPP.AI drug to the drug, both by a resolved name match. Mentions
+    from retracted papers, or whose paper metadata is missing (retraction status unknown), are
+    excluded. Supplementary context only: never a confirmed interaction, never part of the class."""
+    taxa = select(HerbalSubstance.taxon_id).where(HerbalSubstance.id.in_(herb.substance_ids))
+    supplements = resolved_entity_ids(SUPP_AI, "taxon", taxa).where(
+        ExternalEntity.kind == "supplement"
+    )
+    drugs = resolved_entity_ids(SUPP_AI, "drug", [drug.drug_id]).where(
+        ExternalEntity.kind == "drug"
+    )
+    subject, obj = aliased(ExternalEntity), aliased(ExternalEntity)
+    rows = session.execute(
+        select(ExternalRelation, SourceRecord, Source, subject, obj)
+        .join(SourceRecord, SourceRecord.id == ExternalRelation.source_record_id)
+        .join(Source, Source.code == ExternalRelation.source_code)
+        .join(subject, subject.id == ExternalRelation.subject_id)
+        .join(obj, obj.id == ExternalRelation.object_id)
+        .where(ExternalRelation.source_code == SUPP_AI, ExternalRelation.predicate == "interaction_mentioned",
+               ExternalRelation.subject_id.in_(supplements), ExternalRelation.object_id.in_(drugs))
+    ).all()  # fmt: skip
+    herb_name = herb.herb.common_name or herb.herb.pharmaceutical_name
+    if not rows:
+        return []
+    eligible, retracted, no_paper = [], 0, 0
+    for row in rows:
+        paper = (row[0].attributes or {}).get("paper")
+        if not paper:
+            no_paper += 1
+        elif paper.get("retraction"):
+            retracted += 1
+        else:
+            eligible.append(row)
+    excluded = (f" {retracted} mention(s) from retracted papers and {no_paper} without paper metadata "
+                "(retraction status unknown) were excluded.") if retracted or no_paper else ""  # fmt: skip
+    if not eligible:
+        return [ctx.fact_item(
+            f"SUPP.AI holds no eligible machine-extracted mention for {herb_name} with {drug.name}.{excluded} "
+            "This does not show that no interaction exists.", source_code=SUPP_AI,
+            priority=MENTION_PRIORITY + MAX_MENTIONS_PER_PAIR)]  # fmt: skip
+
+    def kind_of(row: Any) -> str:
+        attrs = row[0].attributes or {}
+        return study_type(attrs.get("paper"), (attrs.get("sentence") or {}).get("sentence"))
+
+    eligible.sort(key=lambda r: (STUDY_ORDER[kind_of(r)], -int(((r[0].attributes or {}).get("paper") or {}).get("year") or 0),
+                                 str(r[0].id)))  # fmt: skip
+    counts: dict[str, int] = {}
+    for row in eligible:
+        counts[kind_of(row)] = counts.get(kind_of(row), 0) + 1
+    summary = ", ".join(
+        f"{n} {k.replace('_', ' ')}"
+        for k, n in sorted(counts.items(), key=lambda x: STUDY_ORDER[x[0]])
+    )
+    names = [herb.herb.common_name, herb.herb.pharmaceutical_name]
+    items: list[ctx.ContextItem] = []
+    for rank, (relation, record, source, sup, drg) in enumerate(eligible[:MAX_MENTIONS_PER_PAIR]):
+        attrs = relation.attributes or {}
+        sentence = attrs.get("sentence") or {}
+        paper = attrs.get("paper") or {}
+        text_ = str(sentence.get("sentence") or "")
+        kind = kind_of((relation,))
+        args = [a for a in (sentence.get("arg1"), sentence.get("arg2")) if isinstance(a, dict)]
+        tag = {a.get("id"): tagged_span(text_, a) for a in args}
+        herb_terms = [*filter(None, names), sup.label or "", *((sup.attributes or {}).get("synonyms") or []),
+                      tag.get(sup.external_id) or ""]  # fmt: skip
+        drug_terms = [drug.name, drg.label or "", *((drg.attributes or {}).get("synonyms") or []),
+                      tag.get(drg.external_id) or ""]  # fmt: skip
+        negation = pair_negation(text_, herb_terms, drug_terms)
+        pmid = paper.get("pmid")
+        tagged = [t for t in tag.values() if t]
+        if kind in CONSISTENT_FLAGS:
+            flags = "SUPP.AI paper flags: " + ", ".join(
+                f"{f}={str(bool(paper.get(f))).lower()}" for f in ("clinical_study", "human_study", "animal_study", "retraction")) + ". "  # fmt: skip
+        else:  # the flags contradict the paper; showing them would invite a wrong study type
+            flags = (
+                "SUPP.AI paper flags are not shown: they do not match the paper (see study type). "
+            )
+        lead = (f"SUPP.AI holds {len(eligible)} eligible machine-extracted mention(s) for {herb_name} with "
+                f"{drug.name} (study type: {summary}).{excluded} " if rank == 0 else "")  # fmt: skip
+        text = (f'{lead}SUPP.AI machine-extracted mention: "{text_}" '
+                f"Paper: {paper.get('title') or 'title not stated'} ({paper.get('venue') or 'venue not stated'}, "
+                f"{paper.get('year') or 'year not stated'}); PMID {pmid or 'not stated'}"
+                + (f"; DOI {paper['doi']}" if paper.get("doi") else "") + ". " + flags
+                + (f"Terms tagged by SUPP.AI: {', '.join(repr(t) for t in tagged)}. " if tagged else "")
+                + f"Negation applying to this pair: {repr(negation.negated) if negation.negated else 'none detected'}. "
+                + (f"Warning wording: {negation.warning!r}. " if negation.warning else "")
+                + f"SUPP.AI release {str(attrs.get('release') or 'not stated')[:10]}.")  # fmt: skip
+        location = (f"{record.native_id}, interaction {attrs.get('interaction_id')}, sentence uid {sentence.get('uid')}"
+                    f", line(s) {', '.join(map(str, relation.source_row_numbers[:2]))}")  # fmt: skip
+        provenance = [ProvenanceOut(
+            source_code=source.code, source_name=source.name, licence=source.licence,
+            licence_status=source.licence_status, retrieved_url=record.url, retrieved_at=record.retrieved_at,
+            source_version=record.content_sha256[:12], extraction_method="supp_ai_json_v1",
+            location=location, excerpt=None)]  # fmt: skip
+        items.append(ctx.mention_item(
+            text=text, study_type=kind, negation_cue=negation.negated, warning_cue=negation.warning,
+            other_negation_cue=negation.elsewhere, external_id=f"PMID:{pmid}" if pmid else None,
+            url=f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/" if pmid else None,
+            title=paper.get("title"), location=location, provenance=provenance,
+            priority=MENTION_PRIORITY + rank))  # fmt: skip
+    return items
+
+
 _POSOLOGY = re.compile(
     r"posology|method of administration|daily dose|dosage|duration of use|4\.2", re.I
 )
@@ -376,6 +612,25 @@ def _dosing_answer(context: ctx.EvidenceContext) -> ValidationResult:
     if not posology:
         limitations.insert(0, "No official posology passage was found for this question.")
     return ValidationResult(paragraphs, limitations, insufficient_evidence=not posology)
+
+
+def _dosing_decline_without_herb(question: str, analysis: QuestionAnalysis) -> AskResponse:
+    """Dosing decline when a plant or drug name in the question is ambiguous: the decline message
+    and referral only. No species is assumed, so no posology passage is quoted."""
+    names = "; ".join(f"'{m.mention}' matches more than one {m.kind}" for m in analysis.ambiguous)
+    limitations = [
+        f"{names}, so no official posology passage is shown; HerbaGuard does not assume a species.",
+        REFERRAL,
+    ]
+    return AskResponse(
+        status="declined_dosing", question=question, intent=analysis.intent.value,
+        answer=DOSING_MESSAGE, paragraphs=[ParagraphOut(text=DOSING_MESSAGE, citations=[])],
+        classification=[], citations=[], limitations=limitations, insufficient_evidence=True, entities=[],
+        personal_advice_requested=True, validation=[],
+        generation=GenerationInfo(mode="none", provider="none", model=None, prompts=[], input_tokens=None,
+                                  output_tokens=None, duration_ms=0, failed_attempts=[]),
+        retrieval=None, disclaimer=DISCLAIMER,
+    )  # fmt: skip
 
 
 def _emergency_response(question: str) -> AskResponse:

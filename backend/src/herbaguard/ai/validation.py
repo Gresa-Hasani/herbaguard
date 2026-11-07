@@ -24,7 +24,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from herbaguard.ai.context import ContextItem, EvidenceContext
+from herbaguard.ai.context import ContextItem, EvidenceContext, mention_is_human
 
 ANSWER_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -103,6 +103,137 @@ def parse(text: str) -> tuple[list[Paragraph], list[str], bool]:
 
 
 _CLASS = re.compile(r"\bclass(?:es)?\s*[:(]?\s*['\"]?([A-E])\b(?![-–])", re.I)
+# --- LiverTox hepatotoxicity evidence (P1, 2026-11-07) -------------------------------------------------
+# A LiverTox likelihood score (A-E, X) grades how likely an agent is to cause liver injury; it is never
+# a HerbaGuard interaction class. "Unlikely cause of liver injury" never becomes "safe for the liver",
+# and having no LiverTox record never becomes "no liver risk".
+_LIVERTOX_AS_CLASS = re.compile(
+    r"\b(?:livertox|likelihood(?:\s+score)?)\b\W+(?:[\w'-]+\W+){0,4}?class(?:es|ifies|ified|ification)?\b"
+    r"|\bclass(?:es)?\s*[:(]?\s*['\"]?[A-EX]\b\W+(?:[\w'-]+\W+){0,3}?(?:in|from|by|according to)\s+livertox\b",
+    re.I,
+)
+_LIVER_OVERSTATED = re.compile(
+    r"\b(?:does not|doesn't|do not|don't|will not|won't|cannot|can't|never|is not|isn't)\s+(?:[\w'-]+\s+){0,2}?"
+    r"(?:cause|damage|harm|injure|hurt|affect)\w*\b[^.;]{0,40}\b(?:liver|hepat\w*)"
+    r"|\bno\s+(?:[\w'-]+\s+){0,2}?(?:risk|danger|harm|threat)s?\b[^.;]{0,30}\b(?:liver|hepat\w*)"
+    r"|\bliver[- ](?:safe|friendly)\b|\b(?:safe|harmless)\s+(?:for|to)\s+(?:the\s+|your\s+)?liver\b"
+    r"|\bnot\s+(?:hepatotoxic|toxic to the liver)\b",
+    re.I,
+)
+
+
+# --- SUPP.AI supplementary mentions (P2, 2026-11-07; audit fixes 2026-11-07) ------------------------
+# Paragraphs supported only by SUPP.AI (U# mentions and SUPP.AI facts) may report what a mention says,
+# but never present it as a confirmed or established interaction, never conclude that there is no
+# interaction, and a pair-negated mention never supports a claim that an effect exists. Any paragraph
+# citing a non-human mention (animal, in vitro, conflicting or unstated) may not make a patient or
+# clinical claim unless it states that the cited mention is not human evidence.
+_CONFIRMED = re.compile(
+    r"\b(confirm(?:s|ed|ing)?|establish(?:es|ed)?|proven|prove[sd]?|definite(?:ly)?|well[- ]documented|"
+    r"documented interaction|known to (?:interact|increase|decrease|reduce|raise|lower|inhibit|induce)|"
+    r"clinically (?:significant|relevant|important|meaningful)|clinical interaction|does interact|"
+    r"interacts? with|will (?:increase|decrease|interact|reduce|raise|lower|inhibit|induce))\b",
+    re.I,
+)
+_CONFIRMED_NEGATED = re.compile(
+    r"\b(not|no|never|cannot|can't|without|nor|neither|un|whether|if|may|might|could|possibly|potential(?:ly)?|"
+    r"reported|report(?:s|ing)?|suggest(?:s|ed|ing)?|describ\w*|stat\w*|mention\w*|say|says|said|that)\W+"
+    r"(?:\w+\W+){0,5}$",
+    re.I,
+)
+_NO_INTERACTION = re.compile(
+    r"\bno\s+(?:[\w-]+\s+){0,3}?(?:interactions?|risk|effects? on)\b|"
+    r"\b(?:does|do|did|will|would|can|could)\s*(?:not|n't)\s+(?:\w+\s+)?interact\w*|\bnot\s+interact\w*|"
+    r"\b(?:found|find|finds|showed|shows|show|reported|reports|indicat\w*|suggest\w*|revealed)\s+no\b|"
+    r"\bunlikely to interact\w*|\bno evidence (?:of|for)\b|"
+    r"\b(?:safe(?:ly)?)\s+(?:to\s+)?(?:combine[sd]?|use[sd]?|take|taken|together)\b|\bsafe combination\b",
+    re.I,
+)
+_META_NEGATED = re.compile(
+    r"\b(?:not|never|cannot|can't|n't)\s+(?:\w+\s+){0,3}?(?:show|mean|prove|establish|indicate|imply|evidence|"
+    r"conclude|suggest|support)\w*(?:\s+that)?\s+(?:\w+\s+){0,2}$",
+    re.I,
+)
+_POSITIVE_EFFECT = re.compile(
+    r"\b(increas\w*|decreas\w*|inhibit\w*|induc\w*|interact\w*|rais\w*|lower\w*|reduc\w*|affect\w*|alter\w*|"
+    r"potentiat\w*|enhanc\w*|antagoni\w*)\b",
+    re.I,
+)
+_ANY_NEGATION = re.compile(
+    r"\b(no|not|never|without|none|neither|nor|n't|failed|unaffected|unchanged)\b|n't\b", re.I
+)
+_PATIENT_CLAIM = re.compile(
+    r"\bclinical(?:ly)?\s+(?:stud(?:y|ies)|trials?|data|evidence|significan\w*|relevan\w*|interactions?|practice|"
+    r"use|setting)\b|\b(?:randomi[sz]ed|controlled)\s+(?:clinical\s+)?(?:stud(?:y|ies)|trials?)\b|"
+    r"\bin\s+(?:humans?|patients?|people|volunteers|(?:healthy\s+)?(?:human\s+)?subjects|clinical practice|"
+    r"transplant recipients|women|men|adults|children)\b|"
+    r"\bhuman\s+(?:stud(?:y|ies)|data|evidence|trials?|subjects|volunteers)\b|"
+    r"\b(?:patients?|volunteers)\s+(?:who|receiving|given|treated|taking|on)\b",
+    re.I,
+)
+_NONHUMAN_STATED = re.compile(
+    r"\b(animals?|rats?|mice|mouse|dogs?|canine|rabbits?|pigs?|veterinary|in[- ]vitro|cells?|cell[- ]lines?|"
+    r"hepatocytes?|microsom\w*|cultures?|laboratory|non-?human|not (?:in )?(?:humans?|patients|clinical)|"
+    r"not (?:human|patient|clinical) evidence|study type (?:is |was )?not stated|species (?:is |was )?not stated)\b",
+    re.I,
+)
+
+
+def mention_issue(paragraph: str, cited: list[ContextItem]) -> tuple[str, str, str] | None:
+    """(rule, severity, message) for SUPP.AI misuse in one paragraph, or None."""
+    evidence = [i for i in cited if i.kind not in ("classification", "fact")]
+    facts = [i for i in cited if i.kind == "fact"]
+    only_mentions = bool(evidence) and all(i.kind == "mention" for i in evidence)
+    supp_only = only_mentions or (
+        not evidence and bool(facts) and all(i.source_code == "supp_ai" for i in facts)
+    )
+    # critical rules (SUPP.AI-only paragraphs) first, then paragraph removals
+    if supp_only:
+        for match in _NO_INTERACTION.finditer(paragraph):
+            before = paragraph[: match.start()].rsplit(".", maxsplit=1)[-1]
+            if not _META_NEGATED.search(before):
+                return ("supp_ai_absence_as_no_interaction", "critical",
+                        f"States '{match.group(0)}' from SUPP.AI only; SUPP.AI mentions (or their absence) never "
+                        "show that there is no interaction.")  # fmt: skip
+    if only_mentions:
+        for match in _CONFIRMED.finditer(paragraph):
+            before = paragraph[: match.start()].rsplit(".", maxsplit=1)[-1]
+            if not _CONFIRMED_NEGATED.search(before):
+                return ("supp_ai_mention_as_confirmed", "critical",
+                        f"States '{match.group(0)}' from SUPP.AI mentions only; a machine-extracted mention never "
+                        "confirms or establishes an interaction.")  # fmt: skip
+    nonhuman = [i for i in evidence if i.kind == "mention" and not mention_is_human(i)]
+    if nonhuman and _PATIENT_CLAIM.search(paragraph) and not _NONHUMAN_STATED.search(paragraph):
+        return ("mention_nonhuman_as_clinical", "removed",
+                "Makes a patient or clinical claim while citing a SUPP.AI mention that is not human clinical "
+                "evidence (animal, in vitro, conflicting or unstated study type), without saying so.")  # fmt: skip
+    if not only_mentions:
+        return None
+    if all(
+        any(q.startswith("negation applies to this herb-drug pair") for q in i.qualifiers)
+        for i in evidence
+    ) and (_POSITIVE_EFFECT.search(paragraph) and not _ANY_NEGATION.search(paragraph)):
+        return ("negated_mention_as_positive", "removed",
+                "Reports an interaction or effect from SUPP.AI mentions whose sentences negate it for this pair, "
+                "without stating the negation.")  # fmt: skip
+    return None
+
+
+def hepatotoxicity_issue(paragraph: str, cited_text: str) -> tuple[str, str] | None:
+    """(rule, message) if a paragraph presents a LiverTox score as a class or overstates the
+    LiverTox evidence as liver safety; wording found verbatim in the cited text is a quotation."""
+    if _LIVERTOX_AS_CLASS.search(paragraph):
+        return ("livertox_score_as_class",
+                "Presents a LiverTox likelihood score as a class; LiverTox grades the likelihood of liver "
+                "injury and is not a HerbaGuard interaction class.")  # fmt: skip
+    for match in _LIVER_OVERSTATED.finditer(paragraph):
+        if " ".join(match.group(0).lower().split()) not in " ".join(cited_text.lower().split()):
+            return ("hepatotoxicity_overstated",
+                    f"States '{match.group(0)}'; LiverTox grades a likelihood of liver injury, and an "
+                    "unlikely score or a missing record does not show liver safety.")  # fmt: skip
+    return None
+
+
 _SAFE = re.compile(
     r"\b(is|are|be|considered|generally|completely|totally|perfectly|likely|possibly|probably|usually)"
     r"\s+(safe|harmless)\b|"
@@ -576,6 +707,12 @@ def validate(
             if letter not in expected_classes:
                 result.issues.append(Issue("classification_conflict", "critical",
                     f"The answer states class {letter}; HerbaGuard computed {', '.join(sorted(expected_classes)) or 'no class'}.", index))  # fmt: skip
+        if (liver := hepatotoxicity_issue(para.text, cited_text)) is not None:
+            result.issues.append(Issue(liver[0], "critical", liver[1], index))
+        if (mention := mention_issue(para.text, [items[c] for c in valid])) is not None:
+            result.issues.append(Issue(mention[0], mention[1], mention[2], index))  # type: ignore[arg-type]
+            if mention[1] == "removed":
+                continue
         sources = [items[c].text for c in valid
                    if items[c].kind in ("statement", "excerpt") and items[c].role == "direct_evidence"]  # fmt: skip
         for match in _SAFE.finditer(para.text):
@@ -638,7 +775,7 @@ def validate(
                 "States an effect without the hedging used by the source ('may').", index))  # fmt: skip
             continue
         # most specific diagnosis first: animal/unstated-species records presented as clinical
-        experimental = [items[c] for c in valid if items[c].kind == "observation"]
+        experimental = [items[c] for c in valid if items[c].kind in ("observation", "mention")]
         non_human = [i for i in experimental if not any("human study" in q for q in i.qualifiers)]
         if (non_human and len(non_human) == len(valid) and _CLINICAL_CLAIM.search(para.text)
                 and not _EXPERIMENT_HEDGE.search(para.text)):  # fmt: skip

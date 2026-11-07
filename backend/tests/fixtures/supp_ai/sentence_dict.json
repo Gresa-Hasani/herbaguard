@@ -1,0 +1,203 @@
+{
+    "C0043031-C9000001": [
+        {
+            "arg1": {
+                "id": "C0043031",
+                "span": [
+                    0,
+                    5
+                ]
+            },
+            "arg2": {
+                "id": "C9000001",
+                "span": [
+                    10,
+                    18
+                ]
+            },
+            "confidence": null,
+            "paper_id": "900003",
+            "sentence": "Hawthorn extract altered warfarin response in one patient.",
+            "sentence_id": 1,
+            "uid": 103
+        }
+    ],
+    "C0043031-C9000002": [
+        {
+            "arg1": {
+                "id": "C0043031",
+                "span": [
+                    0,
+                    5
+                ]
+            },
+            "arg2": {
+                "id": "C9000002",
+                "span": [
+                    10,
+                    18
+                ]
+            },
+            "confidence": null,
+            "paper_id": "900001",
+            "sentence": "Coenzyme Q10 was given with warfarin.",
+            "sentence_id": 1,
+            "uid": 199
+        }
+    ],
+    "C0074393-C0813171": [
+        {
+            "arg1": {
+                "id": "C0074393",
+                "span": [
+                    0,
+                    5
+                ]
+            },
+            "arg2": {
+                "id": "C0813171",
+                "span": [
+                    10,
+                    18
+                ]
+            },
+            "confidence": null,
+            "paper_id": "900099",
+            "sentence": "Serotonin syndrome was reported with sertraline and St John's wort.",
+            "sentence_id": 1,
+            "uid": 102
+        }
+    ],
+    "C0771967-C9000003": [
+        {
+            "arg1": {
+                "id": "C0771967",
+                "span": [
+                    0,
+                    5
+                ]
+            },
+            "arg2": {
+                "id": "C9000003",
+                "span": [
+                    10,
+                    18
+                ]
+            },
+            "confidence": null,
+            "paper_id": null,
+            "sentence": "A sentence without a paper id.",
+            "sentence_id": 1,
+            "uid": 104
+        },
+        {
+            "arg1": {
+                "id": "C0771967",
+                "span": [
+                    0,
+                    5
+                ]
+            },
+            "arg2": {
+                "id": "C9000003",
+                "span": [
+                    10,
+                    18
+                ]
+            },
+            "confidence": null,
+            "paper_id": "900003",
+            "sentence": "Black cohosh did not change fictionalol levels.",
+            "sentence_id": 1,
+            "uid": 105
+        }
+    ],
+    "C0813171-C0043031": [
+        {
+            "arg1": {
+                "id": "C0813171",
+                "span": [
+                    0,
+                    5
+                ]
+            },
+            "arg2": {
+                "id": "C0043031",
+                "span": [
+                    10,
+                    18
+                ]
+            },
+            "confidence": null,
+            "paper_id": "900001",
+            "sentence": "St John's wort reduced the anticoagulant effect of warfarin.",
+            "sentence_id": 1,
+            "uid": 100
+        },
+        {
+            "arg1": {
+                "id": "C0813171",
+                "span": [
+                    0,
+                    5
+                ]
+            },
+            "arg2": {
+                "id": "C0043031",
+                "span": [
+                    10,
+                    18
+                ]
+            },
+            "confidence": null,
+            "paper_id": "900001",
+            "sentence": "St John's wort reduced the anticoagulant effect of warfarin.",
+            "sentence_id": 1,
+            "uid": 100
+        },
+        {
+            "arg1": {
+                "id": "C0813171",
+                "span": [
+                    0,
+                    5
+                ]
+            },
+            "arg2": {
+                "id": "C0043031",
+                "span": [
+                    10,
+                    18
+                ]
+            },
+            "confidence": null,
+            "paper_id": "900002",
+            "sentence": "Warfarin levels fell after St John's wort in a retracted report.",
+            "sentence_id": 4,
+            "uid": 101
+        }
+    ],
+    "C0813171-C9000002": [
+        {
+            "arg1": {
+                "id": "C0813171",
+                "span": [
+                    0,
+                    5
+                ]
+            },
+            "arg2": {
+                "id": "C9000002",
+                "span": [
+                    10,
+                    18
+                ]
+            },
+            "confidence": null,
+            "paper_id": "900001",
+            "sentence": "St John's wort and coenzyme Q10 were combined.",
+            "sentence_id": 1,
+            "uid": 106
+        }
+    ]
+}

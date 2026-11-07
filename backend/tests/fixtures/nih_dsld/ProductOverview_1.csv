@@ -1,0 +1,7 @@
+URL,DSLD ID,Product Name,Brand Name,Bar Code,Net Contents,Serving Size,Product Type [LanguaL],Supplement Form [LanguaL],Date Entered into DSLD,Market Status,Suggested Use
+https://dsld.od.nih.gov/label/1001,1001,SJW 300,Test Brand,0 00000 00001 1,60 Capsule(s),1 Capsule(s),Botanical [A1306],Capsule [E0159],2015-01-01,On Market,Take one capsule daily.
+https://dsld.od.nih.gov/label/1002,1002,Hawthorn Heart,Test Brand,,90 Tablet(s),1 Tablet(s),Botanical [A1306],Tablet or Pill [E0155],2016-02-02,Off Market,Take one tablet.
+https://dsld.od.nih.gov/label/1003,1003,Vitamin C 500,Test Brand,,100 Tablet(s),1 Tablet(s),Vitamin [A1302],Tablet or Pill [E0155],2017-03-03,On Market,Take one tablet.
+https://dsld.od.nih.gov/label/1004,1004,Calm Combo,Other Brand,,30 Capsule(s),2 Capsule(s),Botanical [A1306],Capsule [E0159],2018-04-04,On Market,Take two capsules.
+https://dsld.od.nih.gov/label/1006,1006,Ginkgo Leaf,Other Brand,,60 Capsule(s),1 Capsule(s),Botanical [A1306],Capsule [E0159],2019-05-05,On Market,Take one capsule.
+,,Row without an id,,,,,,,,,

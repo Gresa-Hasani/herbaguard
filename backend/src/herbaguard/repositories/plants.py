@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
+from herbaguard.domain.name_overrides import OVERRIDES
 from herbaguard.ingestion.normalize.names import normalize_for_lookup
 from herbaguard.models import HerbalSubstance, Taxon, TaxonName
 
@@ -45,13 +46,35 @@ def match_names(
     rank = case((exact, 0), (prefix, 1), else_=2)
     rows = session.execute(
         select(
-            TaxonName.taxon_id, TaxonName.name, TaxonName.name_type, TaxonName.source_code, exact
+            TaxonName.taxon_id,
+            TaxonName.name,
+            TaxonName.name_type,
+            TaxonName.source_code,
+            exact,
+            TaxonName.normalized_name,
+            Taxon.scientific_name,
         )
+        .join(Taxon, Taxon.id == TaxonName.taxon_id)
         .where(condition, TaxonName.taxon_id.is_not(None))
         .order_by(rank, func.length(TaxonName.normalized_name))
         .limit(limit)
     ).all()
-    return [NameMatch(r[0], r[1], r[2], r[3], bool(r[4])) for r in rows if r[0] is not None]
+    return [
+        NameMatch(r[0], r[1], r[2], r[3], bool(r[4]))
+        for r in rows
+        if r[0] is not None and not excluded_by_override(r[5], r[6])
+    ]
+
+
+def excluded_by_override(normalized_name: str, scientific_name: str) -> bool:
+    """True if a reviewed override says this name row must not identify this taxon
+    (``domain.name_overrides``; the stored row is kept)."""
+    override = OVERRIDES.get(normalized_name)
+    return (
+        override is not None
+        and override.action == "not_this_taxon"
+        and scientific_name in override.excluded_taxa
+    )
 
 
 def search_taxa(

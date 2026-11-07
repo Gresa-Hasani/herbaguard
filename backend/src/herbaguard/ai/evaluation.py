@@ -89,6 +89,10 @@ class Question(BaseModel):
     expect_observations: bool = False  # v2: the answer must use experimental records (DDID)
     expect_only_nonhuman_observations: bool = False  # v2: all such records are animal/unstated
     allow_remote_drug_lookup: bool = False
+    # livertox-1: LiverTox hepatotoxicity context (H# items), checked on the context, not the answer
+    expect_hepatotoxicity: bool | None = None  # None = not checked; False = no H# item allowed
+    expect_no_livertox_record: bool = False  # the "no LiverTox record mapped" fact must be present
+    expect_livertox_disagreement: bool = False  # master list and chapter scores differ; both shown
 
     @property
     def retrieval_scored(self) -> bool:

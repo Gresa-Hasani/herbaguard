@@ -179,6 +179,43 @@ def ingest_ddid(
     _run("ddid", lambda ctx: ddid.run(ctx, folder), {"directory": str(folder)})
 
 
+DatasetFolder = Annotated[
+    Path | None,
+    typer.Option(help="Folder with the downloaded files (default: <raw data dir>/<source>).",
+                 exists=True, file_okay=False),
+]  # fmt: skip
+
+
+@ingest_app.command("supp-ai")
+def ingest_supp_ai(directory: DatasetFolder = None) -> None:
+    """SUPP.AI supplement–drug interaction mentions for curated herbs (automatically extracted
+    sentences; never confirmed interactions). Local files only. Run after taxonomy and labels/rxnav."""
+    from herbaguard.ingestion.pipelines import supp_ai
+
+    folder = directory or Path(get_settings().raw_data_dir) / "supp_ai"
+    _run("supp_ai", lambda ctx: supp_ai.run(ctx, folder), {"directory": str(folder)})
+
+
+@ingest_app.command("livertox")
+def ingest_livertox(directory: DatasetFolder = None) -> None:
+    """LiverTox hepatotoxicity chapters and agent master list (local files only). Run after
+    taxonomy and labels/rxnav."""
+    from herbaguard.ingestion.pipelines import livertox
+
+    folder = directory or Path(get_settings().raw_data_dir) / "livertox"
+    _run("livertox", lambda ctx: livertox.run(ctx, folder), {"directory": str(folder)})
+
+
+@ingest_app.command("nih-dsld")
+def ingest_nih_dsld(directory: DatasetFolder = None) -> None:
+    """NIH DSLD product labels and ingredient composition for products that list a curated herb
+    (local CSV files only). Run after taxonomy."""
+    from herbaguard.ingestion.pipelines import nih_dsld
+
+    folder = directory or Path(get_settings().raw_data_dir) / "nih_dsld"
+    _run("nih_dsld", lambda ctx: nih_dsld.run(ctx, folder), {"directory": str(folder)})
+
+
 @ingest_app.command("all")
 def ingest_all(herb: HerbOption = None, max_pages: int = 5) -> None:
     """Run every pipeline in dependency order."""

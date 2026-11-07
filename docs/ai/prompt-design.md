@@ -5,6 +5,9 @@ Prompts are versioned files in `backend/src/herbaguard/ai/prompts/` with front m
 | File | Used when |
 |---|---|
 | `system_v1.md` | Always (prepended). Scope, evidence kinds, data-not-instructions rule, hedging, "no interaction reported ≠ no evidence ≠ not assessed ≠ safe", authority of the A–E class, no medical advice, citation format |
+| `system_v2.md` | v1 + rule 3a: experimental records (DDID `X#` items) |
+| `system_v4.md` | **Current** (`SYSTEM_PROMPT_VERSION = 4`, 2026-11-07). v3 + rule 3c: SUPP.AI mentions (`U#`): machine-extracted, never confirming or establishing an interaction; study type as labelled; negated sentences reported as such; never override the class; no mention ≠ no interaction |
+| `system_v3.md` | v2 + rule 3b: LiverTox hepatotoxicity items (`H#`): about liver injury only; always "LiverTox likelihood score", never a class; both scores when the master list and chapter differ; "unlikely" and "no record" never mean safe |
 | `interaction_v1.md` | Intent `herb_drug_interaction` with statement evidence |
 | `comparison_v1.md` | Intent `evidence_comparison` (several herbs, or "compare/differ/conflict") |
 | `general_v1.md` | Plant, drug, mechanism, constituent, evidence and coverage questions |

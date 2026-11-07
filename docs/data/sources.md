@@ -17,6 +17,9 @@ Verification markers as in Phase 0: **✔ tested** (real request on 2026-11-02),
 | `rxnav` | RxNorm / RxClass | Ingredient normalisation, ATC classes | NLM terms; ATC © WHO CC (codes only stored) ◐ | ✔ tested | Some lay/foreign drug names do not resolve (recorded) |
 | `pubmed` | PubMed E-utilities | Literature metadata, abstracts (local only), evidence type | Metadata free; abstracts © publishers — **never committed** | ✔ tested | Evidence type from publication types reflects design, not quality; MeSH indexing lag |
 | `herbaguard_curated` | `data/curated/*.yaml` | Herb list, lexicon | MIT (project) ✔ | — | Human-curated; every lexicon entry records where its wording was seen |
+| `supp_ai` | SUPP.AI (Allen Institute for AI), local download | Supplement–drug interaction *mentions* (sentences selected by a model) for curated herbs | ○ to verify (not stated in the download) — not redistributable | ✔ tested ([external-datasets.md](external-datasets.md)) | Automatically extracted; not confirmed interactions; release dated 2021-10-20 |
+| `livertox` | LiverTox (NIDDK/NLM, NCBI Bookshelf NBK547852), local download | Hepatotoxicity: agent master list with LiverTox likelihood scores, chapter text | Copyright free (NIDDK), acknowledgement requested ✔ | ✔ tested ([external-datasets.md](external-datasets.md)) | LiverTox likelihood A–E/X is not HerbaGuard's interaction class |
+| `nih_dsld` | NIH Dietary Supplement Label Database, local download | Product labels and ingredient composition of products that list a curated herb | ○ to verify (U.S. government database of manufacturers' label text) — not redistributable | ✔ tested ([external-datasets.md](external-datasets.md)) | Manufacturer statements; exact ingredient names only |
 
 ## Corrections to Phase 0 findings
 

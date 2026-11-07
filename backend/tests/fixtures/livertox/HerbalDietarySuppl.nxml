@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE book-part-wrapper PUBLIC "-//NLM//DTD BITS Book Interchange DTD v2.0 20151225//EN" "http://jats.nlm.nih.gov/extensions/bits/2.0/BITS-book2.dtd">
+<book-part-wrapper content-type="chapter" id="HerbalDietarySuppl" from-where="body" dtd-version="2.0">
+  <book-meta><book-id book-id-type="pmcid">livertox</book-id><book-title-group><book-title>LiverTox</book-title></book-title-group></book-meta>
+  <book-part book-part-type="chapter">
+    <book-part-meta>
+      <book-part-id book-part-id-type="pmcid">HerbalDietarySuppl</book-part-id>
+      <title-group><title>Herbal and Dietary Supplements</title></title-group>
+      <pub-history><date date-type="updated"><day>28</day><month>3</month><year>2020</year></date></pub-history>
+    </book-part-meta>
+    <body><sec><title>Introduction</title><p>Synthetic overview chapter without a likelihood score.</p></sec></body>
+    <back><ref-list></ref-list></back>
+  </book-part>
+</book-part-wrapper>

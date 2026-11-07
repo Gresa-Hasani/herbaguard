@@ -203,6 +203,53 @@ SOURCES: tuple[SourceDefinition, ...] = (
         redistributable=False,
     ),
     SourceDefinition(
+        code="supp_ai",
+        name="SUPP.AI — supplement–drug interaction mentions extracted from the literature",
+        provider="Allen Institute for AI (supp.ai)",
+        priority="P2",
+        access_method="download",
+        homepage_url="https://supp.ai/",
+        is_official=False,
+        licence=(
+            "Not in download. supp.ai: dataset 'public and available for download', © AI2 All Rights "
+            "Reserved; AI2 Terms forbid redistribution without written permission. No dataset licence "
+            "found; local research use only (checked 2026-11-07)"
+        ),
+        licence_status=LicenceStatus.TO_VERIFY,
+        redistributable=False,
+    ),
+    SourceDefinition(
+        code="livertox",
+        name="LiverTox — clinical and research information on drug-induced liver injury",
+        provider="NIDDK / National Library of Medicine (NCBI Bookshelf NBK547852)",
+        priority="P1",
+        access_method="download",
+        homepage_url="https://www.ncbi.nlm.nih.gov/books/NBK547852/",
+        is_official=True,
+        licence=(
+            "Copyright free (NIDDK); acknowledgement requested. The download's terms of use treat "
+            "documents without a licence statement as public domain; none of the chapters has one."
+        ),
+        licence_status=LicenceStatus.VERIFIED,
+        redistributable=True,
+    ),
+    SourceDefinition(
+        code="nih_dsld",
+        name="NIH Dietary Supplement Label Database (DSLD)",
+        provider="NIH Office of Dietary Supplements (dsld.od.nih.gov)",
+        priority="P2",
+        access_method="download",
+        homepage_url="https://dsld.od.nih.gov/",
+        is_official=True,
+        licence=(
+            "Not in download. NIH ODS database of manufacturers' label text (their trademarks and "
+            "wording). dsld/ods sites refused automated access (HTTP 403, 2026-11-07); terms not "
+            "confirmed; verify before any redistribution"
+        ),
+        licence_status=LicenceStatus.TO_VERIFY,
+        redistributable=False,
+    ),
+    SourceDefinition(
         code="herbaguard_ai_index",
         name="HerbaGuard retrieval index (segments and embeddings derived from stored text)",
         provider="HerbaGuard team",

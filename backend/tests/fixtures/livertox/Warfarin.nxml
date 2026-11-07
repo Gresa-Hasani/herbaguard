@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE book-part-wrapper PUBLIC "-//NLM//DTD BITS Book Interchange DTD v2.0 20151225//EN" "http://jats.nlm.nih.gov/extensions/bits/2.0/BITS-book2.dtd">
+<book-part-wrapper content-type="chapter" id="Warfarin" from-where="body" dtd-version="2.0">
+  <book-meta><book-id book-id-type="pmcid">livertox</book-id><book-title-group><book-title>LiverTox</book-title></book-title-group></book-meta>
+  <book-part book-part-type="chapter">
+    <book-part-meta>
+      <title-group><title>Warfarin</title></title-group>
+      <pub-history><date date-type="updated"><day>28</day><month>3</month><year>2020</year></date></pub-history>
+    </book-part-meta>
+    <body><sec><title>Hepatotoxicity</title><p>Synthetic warfarin text.</p><p>Likelihood score: C (probable rare cause of clinically apparent liver injury).</p></sec><sec><title>Outcome and Management</title><p>Synthetic outcome text.</p></sec></body>
+    <back><ref-list><ref><element-citation><pub-id pub-id-type="pmid">900003</pub-id></element-citation></ref></ref-list></back>
+  </book-part>
+</book-part-wrapper>

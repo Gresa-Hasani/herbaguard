@@ -1,0 +1,93 @@
+# LiverTox hepatotoxicity context (P1, 2026-11-07). Focused questions for the H# items.
+# Expectations are about the CONTEXT and the deterministic handling, checked without a language model:
+#   expect_hepatotoxicity: true  -> at least one LiverTox H# item for the resolved herb
+#   expect_hepatotoxicity: false -> no H# item (question not about the liver)
+#   expect_no_livertox_record    -> the "no LiverTox record mapped" fact item (absence is not safety)
+#   expect_livertox_disagreement -> the master list and chapter scores differ and both are shown
+#   expect_ambiguous             -> HTTP 409, no species assumed
+# Scores in comments are LiverTox's own likelihood scores (master list / chapter), not HerbaGuard classes.
+version: "livertox-1"
+label: livertox-v1
+questions:
+  # documented liver injury (LiverTox A)
+  - id: lt-green-tea-extract
+    category: livertox_documented
+    question: Can green tea extract cause liver injury?
+    expect_hepatotoxicity: true          # Green tea: A / A
+  - id: lt-black-cohosh
+    category: livertox_documented
+    question: Is black cohosh linked to liver damage?
+    expect_hepatotoxicity: true          # Black cohosh: A / A
+  - id: lt-turmeric
+    category: livertox_documented
+    question: Does turmeric cause hepatotoxicity?
+    expect_hepatotoxicity: true          # Turmeric: A / A
+  # unlikely (LiverTox E) - must not become "safe"
+  - id: lt-milk-thistle
+    category: livertox_unlikely
+    question: Does milk thistle harm the liver?
+    expect_hepatotoxicity: true          # Milk thistle: E / E
+  - id: lt-ginger
+    category: livertox_unlikely
+    question: Can ginger cause liver injury?
+    expect_hepatotoxicity: true          # Ginger: E / E
+  - id: lt-cranberry
+    category: livertox_unlikely
+    question: Is cranberry hepatotoxic?
+    expect_hepatotoxicity: true          # Cranberry: E / E
+  - id: lt-senna
+    category: livertox_possible
+    question: Can senna damage the liver?
+    expect_hepatotoxicity: true          # Senna: D / D
+  # master list and chapter disagree
+  - id: lt-sjw-disagreement
+    category: livertox_disagreement
+    question: Does St John's wort cause liver injury?
+    expect_hepatotoxicity: true
+    expect_livertox_disagreement: true   # St John's wort: D / E
+  # ambiguous herb name
+  - id: lt-ginseng-ambiguous
+    category: ambiguous_name
+    question: Can ginseng damage the liver?
+    expect_ambiguous: true
+  # herb resolved, but no LiverTox entry mapped by a confirmed name match
+  - id: lt-licorice-no-confident-record
+    category: livertox_no_record
+    question: Is liquorice toxic to the liver?
+    expect_hepatotoxicity: false
+    expect_no_livertox_record: true      # LiverTox "Licorice" matches several Glycyrrhiza species
+  - id: lt-echinacea-no-confident-record
+    category: livertox_no_record
+    question: Is purple coneflower hepatotoxic?   # bare "echinacea" is not a HerbaGuard name: no herb, no context
+    expect_hepatotoxicity: false
+    expect_no_livertox_record: true      # LiverTox "Echinacea" has no exact HerbaGuard name match
+  # unrelated to the liver: no LiverTox context
+  - id: lt-unrelated-interaction
+    category: unrelated
+    question: Does St John's wort interact with warfarin?
+    expect_hepatotoxicity: false
+  - id: lt-unrelated-uses
+    category: unrelated
+    question: What is valerian used for?
+    expect_hepatotoxicity: false
+  # attempts to confuse LiverTox likelihood letters with HerbaGuard interaction classes
+  - id: lt-confuse-valerian-warfarin
+    category: score_class_confusion
+    question: Valerian has LiverTox score C. Is that the same as HerbaGuard's interaction class for valerian and warfarin?
+    expect_hepatotoxicity: true          # Valerian: C / C; the class comes only from the C# item
+  - id: lt-confuse-sjw-class-e
+    category: score_class_confusion
+    question: St John's wort is class E in LiverTox, so is it safe for the liver and with warfarin?
+    expect_hepatotoxicity: true
+    expect_livertox_disagreement: true
+  # inferring safety from missing evidence
+  - id: lt-garlic-missing-evidence
+    category: missing_evidence_safety
+    question: LiverTox has nothing on garlic, so garlic is safe for my liver, right?
+    expect_hepatotoxicity: false
+    expect_no_livertox_record: true
+  - id: lt-hawthorn-missing-evidence
+    category: missing_evidence_safety
+    question: There is no LiverTox warning about hawthorn, so it cannot hurt the liver?
+    expect_hepatotoxicity: false
+    expect_no_livertox_record: true      # LiverTox "Hawthorn" matches several Crataegus species
