@@ -21,6 +21,16 @@ if not config.get_main_option("sqlalchemy.url"):
 target_metadata = Base.metadata
 
 
+def include_object(
+    obj: object, name: str | None, type_: str, reflected: bool, compare_to: object
+) -> bool:
+    """Per-model HNSW indexes on segment_embedding are created at runtime by `herbaguard ai index`
+    (one per embedding model and dimension, ADR-021); they are not part of the declared schema."""
+    return not (
+        type_ == "index" and reflected and (name or "").startswith("ix_segment_embedding_hnsw_")
+    )
+
+
 def run_migrations_offline() -> None:
     context.configure(
         url=config.get_main_option("sqlalchemy.url"),
@@ -40,7 +50,12 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            compare_type=True,
+            include_object=include_object,
+        )
         with context.begin_transaction():
             context.run_migrations()
 

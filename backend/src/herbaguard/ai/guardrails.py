@@ -1,17 +1,30 @@
-"""Deterministic question screening, applied before retrieval and before any LLM call.
+"""Deterministic question screening, applied before retrieval and before any model call.
 
-The assistant answers questions about what sources say. It never gives individual dosing
-advice and never handles emergencies; those are recognised by fixed patterns (no model), so the
-behaviour is predictable and testable (docs/api/assistant.md §4).
+HerbaGuard explains what sources say. It never handles emergencies and never gives individual
+dosing advice; both are recognised by fixed patterns (no model), so the behaviour is predictable
+and testable. The patterns come from the earlier Evidence Assistant on ``main`` (commits e491d02
+and 3861b91, ``ai/guardrails.py``), including its narrower dosing patterns, and are kept
+compatible with this architecture.
+
+* ``EMERGENCY`` — overdose, poisoning, acute severe symptoms, self-harm: no retrieval, no
+  generation, a referral message only.
+* ``DOSING`` — "how much should I take", "what dose", "can I take 600 mg": no generated text; the
+  official posology passages (e.g. EU monograph section 4.2) are quoted verbatim with a statement
+  that they are not a recommendation for the reader. A question about combining a herb with a
+  medicine ("Can I take ginseng with my blood pressure tablets?") is an evidence question, not a
+  dosing question.
+* ``EVIDENCE`` — everything else.
+
+Symptoms count as an emergency only when someone is having them now ("I have chest pain"), so
+evidence questions such as "can ginkgo lower the seizure threshold?" are not refused.
 """
 
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 from enum import StrEnum
-
-from herbaguard.ai.text import fold
 
 
 class QuestionKind(StrEnum):
@@ -27,9 +40,18 @@ class Screening:
     reason: str | None = None
 
 
-# Symptoms count only when someone is having them now ("I have chest pain"), so that evidence
-# questions such as "can ginkgo lower the seizure threshold?" are not treated as emergencies.
-_WHO = r"(?:i|i'm|im|i am|i've|ive|my (?:\w+ )?(?:child|son|daughter|baby|husband|wife|partner|mother|father|mom|mum|dad|friend)|he|she|he's|she's|they|they're|we)"
+def fold(text: str) -> str:
+    """Lower-case, ASCII-folded, single-spaced text with straight apostrophes."""
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    text = text.replace("’", "'").replace("‘", "'")
+    return re.sub(r"\s+", " ", text.lower()).strip()
+
+
+_WHO = (
+    r"(?:i|i'm|im|i am|i've|ive|my (?:\w+ )?(?:child|son|daughter|baby|husband|wife|partner|mother|"
+    r"father|mom|mum|dad|friend)|he|she|he's|she's|they|they're|we)"
+)
 _EMERGENCY = [
     r"\boverdos(?:e|ed|ing)\b",
     r"\b(?:i|he|she|they|we|my \w+) (?:might have |may have |think i )?(?:been )?poisoned\b",
@@ -45,7 +67,6 @@ _EMERGENCY = [
     r"\b(?:vomiting|throwing up|coughing up) blood\b",
     r"\b(?:kill|harm|hurt) (?:my|him|her|them)sel(?:f|ves)\b|\bsuicid|\bend my life\b",
 ]
-
 _DOSING = [
     r"\bhow (?:much|many)\b.*\b(?:take|use|give|drink|have|dose|capsules?|tablets?|mg|grams?|cups?|drops?)\b",
     r"\bwhat (?:is the |'?s the )?(?:right |correct |safe |recommended |best |maximum |max )?(?:dose|dosage|amount)\b",
@@ -57,7 +78,6 @@ _DOSING = [
     r"\bhow (?:often|long) should i (?:take|use)\b",
     r"\bmaximum (?:daily )?(?:dose|amount)\b",
 ]
-
 _EMERGENCY_RE = [re.compile(p) for p in _EMERGENCY]
 _DOSING_RE = [re.compile(p) for p in _DOSING]
 
@@ -69,17 +89,18 @@ EMERGENCY_MESSAGE = (
 DOSING_MESSAGE = (
     "HerbaGuard does not give individual dosing advice. The right amount depends on the product, "
     "the preparation, your other medicines and your health, so please ask a pharmacist or doctor. "
-    "The sources below show what the official documents say about posology; they are not a "
+    "The passages below show what official documents state about posology; they are not a "
     "recommendation for you."
 )
 REFERRAL = (
     "Before starting, stopping or combining a herbal product with medicines, talk to your doctor "
     "or pharmacist and tell them about every product you use."
 )
+POSOLOGY_TERMS = ("posology", "method of administration", "daily dose", "dosage", "duration of use")
 
 
 def screen(question: str) -> Screening:
-    """Classify a question. Emergency wins over dosing; everything else is an evidence question."""
+    """Emergency wins over dosing; everything else is an evidence question."""
     text = fold(question)
     if not re.search(r"[a-z]", text):
         return Screening(QuestionKind.EMPTY, "The question contains no words.")

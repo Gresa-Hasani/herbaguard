@@ -91,11 +91,6 @@ The interaction check (`POST /api/v1/interactions/check`) returns `mechanism_pat
 
 `POST /api/v1/mechanisms/paths` and every `POST /api/v1/interactions/check` result now carry an explicit mechanism finding — see [mechanism-paths.md](mechanism-paths.md) §3.
 
-## AI evidence assistant (Phase 5)
+## AI (Phase 5)
 
-| Method & path | Purpose |
-|---|---|
-| `POST /api/v1/assistant/ask` | `{question, herb?, drugs?, mode}` → grounded answer with validated `[S1]` citations, the deterministic A–E result for recognised pairs, and generation metadata. Modes: generated / extractive / insufficient_evidence / needs_clarification / declined_dosing / emergency_referral |
-| `GET /api/v1/assistant/status` | LLM provider (Ollama or none), model availability, embedded chunks, retrieval mode |
-
-Pipeline, guardrails and evaluation: [assistant.md](assistant.md).
+`POST /api/v1/ai/ask`, `POST /api/v1/ai/retrieve`, `GET /api/v1/ai/providers`, `GET /api/v1/ai/health` — see [ai-endpoints.md](ai-endpoints.md).

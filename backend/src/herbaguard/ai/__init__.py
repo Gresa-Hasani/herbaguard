@@ -1,6 +1,6 @@
-"""AI evidence assistant (Phase 5): retrieval, local LLM client, guardrails, citation validation.
+"""HerbaGuard AI layer (Phase 5): providers, embeddings, retrieval, context, generation.
 
-The pure modules (``text``, ``guardrails``, ``fusion``, ``prompting``, ``citations``,
-``extractive``, ``evaluation``) import nothing from the database or HTTP layers, so the rules that
-keep answers grounded can be tested without PostgreSQL or Ollama.
+The layer explains stored, provenance-tracked evidence. It never classifies herb–drug pairs: the
+A–E class always comes from ``herbaguard.domain.interactions`` via the interaction service.
+See docs/ai/architecture.md.
 """

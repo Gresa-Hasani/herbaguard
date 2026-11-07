@@ -1,0 +1,395 @@
+"""Evidence assembly: the structured, traceable context given to the answer generator.
+
+Item kinds and labels (labels are what the model may cite):
+
+* ``C#`` — deterministic classification of a herb–drug pair, copied from the interaction service
+  (class, finding, explanation, caveats, mechanism finding). The model explains it; it never
+  produces one.
+* ``S#`` — a source statement (verbatim sentence) that the interaction service used (decisive or
+  context), with its conditions, use category, severity wording and subject check.
+* ``M#`` — a mechanism path or herb effect from the knowledge graph. Its text is a deterministic
+  description built from stored rows, including the source's hedging word ("may inhibit"); it is
+  marked as graph context, never as a direct source quotation.
+* ``E#`` — a retrieved excerpt (verbatim slice of stored source text).
+* ``F#`` — a catalogue fact (source registry, coverage, FDA role listing).
+
+Rules:
+
+* Text is never shortened. If the token budget is exceeded, whole items are left out (lowest
+  priority first) and the number left out is reported as a limitation.
+* Items are de-duplicated: a retrieved excerpt that repeats a statement already present is dropped.
+* Every item carries its source code, evidence type, location, URL and provenance from the
+  database, and whether its source is registered as redistributable.
+"""
+
+from __future__ import annotations
+
+import math
+from collections.abc import Iterable
+from dataclasses import dataclass, field
+from typing import Literal
+
+from herbaguard.ai.retrieval import RetrievedEvidence
+from herbaguard.api.schemas.mechanism_core import HerbEffectOut, MechanismPathOut
+from herbaguard.api.schemas.provenance import EVIDENCE_TYPE_LABELS, ProvenanceOut
+from herbaguard.api.schemas.resources import DrugCheckResult, StatementOut
+from herbaguard.services.mappers import provenance_out
+
+Kind = Literal["classification", "statement", "mechanism", "excerpt", "fact", "observation"]
+Role = Literal[
+    "deterministic_classification",
+    "direct_evidence",
+    "graph_context",
+    "catalogue",
+    "experimental_evidence",
+]
+
+
+@dataclass(slots=True)
+class ContextItem:
+    label: str
+    kind: Kind
+    role: Role
+    text: str
+    source_code: str | None = None
+    evidence_item_id: str | None = None
+    external_id: str | None = None
+    evidence_type: str | None = None
+    title: str | None = None
+    location: str | None = None
+    url: str | None = None
+    qualifiers: list[str] = field(default_factory=list)
+    provenance: list[ProvenanceOut] = field(default_factory=list)
+    redistributable: bool | None = None
+    priority: int = 50  # lower = kept first under the budget
+
+    @property
+    def tokens(self) -> int:
+        """Approximate tokens (≈4 characters per token for English text) incl. markup."""
+        return math.ceil((len(self.text) + sum(len(q) for q in self.qualifiers)) / 4) + 40
+
+
+@dataclass(slots=True)
+class EvidenceContext:
+    items: list[ContextItem]
+    omitted: int = 0
+    excluded_for_licence: int = 0
+    notes: list[str] = field(default_factory=list)
+
+    def by_label(self) -> dict[str, ContextItem]:
+        return {i.label: i for i in self.items}
+
+    @property
+    def citable(self) -> list[ContextItem]:
+        return [i for i in self.items if i.kind != "classification"]
+
+    @property
+    def tokens(self) -> int:
+        return sum(i.tokens for i in self.items)
+
+
+def _type_label(code: str | None) -> str | None:
+    if code is None:
+        return None
+    return (
+        f"{code} ({EVIDENCE_TYPE_LABELS.get(code, code)})" if code in EVIDENCE_TYPE_LABELS else code
+    )
+
+
+# --------------------------------------------------------------------------- builders
+
+
+def classification_items(results: Iterable[DrugCheckResult], herb_name: str) -> list[ContextItem]:
+    out = []
+    for result in results:
+        c = result.classification
+        drug = result.drug.drug.name if result.drug.drug else result.drug.query
+        lines = [
+            f"Pair: {herb_name} + {drug}",
+            f"Class {c.interaction_class.value} — {c.class_label}; finding: {c.finding_label}.",
+            f"Explanation: {c.explanation}",
+        ]
+        if c.severity_wordings:
+            lines.append("Severity wording quoted from sources: " + "; ".join(c.severity_wordings))
+        if result.mechanism_assessment is not None:
+            m = result.mechanism_assessment
+            lines.append(f"Mechanism finding: {m.label}. {m.explanation}")
+        lines += [f"Caveat: {caveat}" for caveat in c.caveats]
+        out.append(
+            ContextItem(
+                label="",
+                kind="classification",
+                role="deterministic_classification",
+                text="\n".join(lines),
+                qualifiers=[c.method],
+                priority=0,
+            )
+        )
+    return out
+
+
+def statement_item(s: StatementOut, *, priority: int) -> ContextItem | None:
+    if not s.excerpt:
+        return None
+    qualifiers = [f"statement type: {s.statement_type.value} ({s.statement_type_note})"]
+    if s.use_category and s.use_category != "not_applicable":
+        qualifiers.append(f"use category: {s.use_category.replace('_', ' ')}")
+    if s.conditions:
+        qualifiers.append(f"conditions: {s.conditions}")
+    if s.severity_wording:
+        qualifiers.append(f"severity wording: {s.severity_wording}")
+    if s.subject_check_note:
+        qualifiers.append(f"subject check: {s.subject_check_note}")
+    target = (
+        s.drug.name if s.drug else (s.drug_class.code if s.drug_class else s.object_label_verbatim)
+    )
+    qualifiers.append(f"about: {target} ({'drug' if s.matched_via == 'drug' else 'drug class'})")
+    return ContextItem(
+        label="", kind="statement", role="direct_evidence", text=s.excerpt,
+        source_code=s.source_code, evidence_item_id=s.evidence.id, external_id=s.evidence.external_id,
+        evidence_type=s.evidence.evidence_type.code.value, title=s.evidence.title,
+        location=f"section {s.source_section}" if s.source_section else None,
+        url=s.evidence.url or (s.provenance[0].retrieved_url if s.provenance else None),
+        qualifiers=qualifiers, provenance=list(s.provenance), priority=priority,
+    )  # fmt: skip
+
+
+def mechanism_path_item(p: MechanismPathOut) -> ContextItem:
+    qualifiers = ["graph relationship (herb effect + FDA drug role), not a direct quotation"]
+    qualifiers.append("meets the class-B rules" if p.qualifies_for_class_b else
+                      "does not meet the class-B rules: " + " ".join(p.reasons_not_qualifying))  # fmt: skip
+    if p.herb_effect.hedge_wording:
+        qualifiers.append(f"source wording is hedged: '{p.herb_effect.hedge_wording}'")
+    if p.experimental:
+        qualifiers.append("herb-side evidence is in-vitro or animal")
+    if p.conflicting:
+        qualifiers.append("sources state opposite effects on this target")
+    evidence = p.herb_effect.evidence
+    return ContextItem(
+        label="", kind="mechanism", role="graph_context", text=p.description,
+        source_code=p.herb_effect.source_code, evidence_item_id=evidence.id if evidence else None,
+        external_id=evidence.external_id if evidence else None,
+        evidence_type=p.herb_effect.evidence_type.code.value, title=evidence.title if evidence else None,
+        url=(evidence.url if evidence else None) or (p.herb_effect.provenance[0].retrieved_url if p.herb_effect.provenance else None),
+        qualifiers=qualifiers, provenance=list(p.herb_effect.provenance) + list(p.drug_role.provenance),
+        priority=10 if p.qualifies_for_class_b else 30,
+    )  # fmt: skip
+
+
+def herb_effect_item(e: HerbEffectOut) -> ContextItem:
+    verb = f"{e.hedge_wording} {e.effect.removesuffix('s')}" if e.hedge_wording else e.effect
+    strength = f" ({e.potency})" if e.potency else ""
+    subject = (
+        e.subject_label
+        if e.subject_kind == "herbal_substance"
+        else f"{e.subject_label} (a constituent of {e.herb})"
+    )
+    qualifiers = ["graph relationship, not a direct quotation"]
+    if e.conditions:
+        qualifiers.append(f"conditions: {e.conditions}")
+    if e.subject_kind == "constituent":
+        qualifiers.append(
+            "stated for a constituent; does not show that the herbal preparation has this effect"
+        )
+    if e.evidence_type.code.value in ("INVITRO", "ANIMAL"):
+        qualifiers.append("in-vitro or animal finding; not clinical evidence")
+    quote = e.provenance[0].excerpt if e.provenance and e.provenance[0].excerpt else None
+    text = f"{subject} {verb}{strength} {e.target.symbol} ({e.target.name})."
+    if quote:
+        text += f' Source sentence: "{quote}"'
+    return ContextItem(
+        label="", kind="mechanism", role="graph_context", text=text, source_code=e.source_code,
+        evidence_item_id=e.evidence.id if e.evidence else None,
+        external_id=e.evidence.external_id if e.evidence else None,
+        evidence_type=e.evidence_type.code.value, title=e.evidence.title if e.evidence else None,
+        url=(e.evidence.url if e.evidence else None) or (e.provenance[0].retrieved_url if e.provenance else None),
+        qualifiers=qualifiers, provenance=list(e.provenance), priority=15,
+    )  # fmt: skip
+
+
+def excerpt_item(r: RetrievedEvidence, *, rank: int) -> ContextItem:
+    qualifiers = [f"retrieved passage (rank {rank}); retrieval rank is not evidence quality"]
+    if r.publication_year:
+        qualifiers.append(f"publication year: {r.publication_year}")
+    if r.document_date:
+        qualifiers.append(f"document date: {r.document_date.isoformat()}")
+    if r.herbs:
+        qualifiers.append("linked herbs: " + ", ".join(r.herbs))
+    return ContextItem(
+        label="", kind="excerpt", role="direct_evidence", text=r.excerpt, source_code=r.source_code,
+        evidence_item_id=str(r.evidence_item_id), external_id=r.external_id,
+        evidence_type=r.evidence_type, title=r.title,
+        location=f"{r.section}, characters {r.char_start}–{r.char_end}" if r.section else f"characters {r.char_start}–{r.char_end}",
+        url=r.url, qualifiers=qualifiers, provenance=[provenance_out(p) for p in r.provenance],
+        redistributable=r.redistributable, priority=20 + rank,
+    )  # fmt: skip
+
+
+STUDY_CONTEXT_NOTE = {
+    "human": "human study (as stated by the dataset); a single study, not a confirmed clinical interaction",
+    "animal": "animal study: NOT human clinical evidence",
+    "unknown": "species not stated: NOT human clinical evidence",
+}
+
+
+def observation_item(
+    *, text: str, study_context: str, effect_label: str, evidence_item_id: str | None,
+    external_id: str | None, url: str | None, title: str | None, location: str,
+    provenance: list[ProvenanceOut], plant_part_note: str | None, priority: int,
+) -> ContextItem:  # fmt: skip
+    """An experimental record from an external dataset (e.g. DDID). The dataset's own effect label
+    is shown as such; it is never a HerbaGuard class."""
+    qualifiers = [
+        f"study context: {STUDY_CONTEXT_NOTE.get(study_context, study_context)}",
+        f"dataset label '{effect_label}' is the database's own label, not a HerbaGuard A-E class",
+        "secondary database record; licence of the dataset not verified",
+    ]
+    if plant_part_note:
+        qualifiers.append(plant_part_note)
+    evidence_type = {"human": "CLIN", "animal": "ANIMAL"}.get(study_context, "OTHER")
+    return ContextItem(
+        label="", kind="observation", role="experimental_evidence", text=text, source_code="ddid",
+        evidence_item_id=evidence_item_id, external_id=external_id, evidence_type=evidence_type,
+        title=title, location=location, url=url, qualifiers=qualifiers, provenance=provenance,
+        redistributable=False, priority=priority,
+    )  # fmt: skip
+
+
+def fact_item(text: str, *, source_code: str | None = None, priority: int = 40) -> ContextItem:
+    return ContextItem(label="", kind="fact", role="catalogue", text=text, source_code=source_code,
+                       qualifiers=["HerbaGuard catalogue information"], priority=priority)  # fmt: skip
+
+
+# --------------------------------------------------------------------------- assembly
+
+_PREFIX: dict[Kind, str] = {
+    "observation": "X",
+    "classification": "C",
+    "statement": "S",
+    "mechanism": "M",
+    "excerpt": "E",
+    "fact": "F",
+}
+
+
+def _normalise(text: str) -> str:
+    return " ".join(text.lower().split())
+
+
+RESERVED_SLOTS: dict[str, int] = {"observation": 2}
+
+
+def assemble(
+    items: list[ContextItem],
+    *,
+    max_tokens: int,
+    max_items: int,
+    redistributable: dict[str, bool] | None = None,
+    cloud_only_redistributable: bool = False,
+    reserved: dict[str, int] | None = None,
+) -> EvidenceContext:
+    """Order by priority, de-duplicate, apply licence and budget limits, then assign labels.
+
+    ``reserved`` (default: two slots for experimental records) is filled first, in priority order,
+    so records of an external dataset are not crowded out by retrieved passages; the reserved
+    items count against ``max_items`` and the token budget like any other item. Text is never
+    shortened: an item that does not fit is left out whole."""
+    reserved = RESERVED_SLOTS if reserved is None else reserved
+    ordered = sorted(items, key=lambda i: i.priority)
+    excluded = 0
+    eligible: list[ContextItem] = []
+    for item in ordered:
+        if redistributable is not None and item.source_code and item.redistributable is None:
+            item.redistributable = redistributable.get(item.source_code, False)
+        if (
+            cloud_only_redistributable
+            and item.kind != "classification"
+            and item.redistributable is False
+        ):
+            excluded += 1
+            continue
+        eligible.append(item)
+
+    kept: set[int] = set()
+    texts: list[str] = []
+    budget = max_tokens
+    evidence_count = 0
+    omitted = 0
+
+    def duplicate(item: ContextItem) -> bool:
+        norm = _normalise(item.text)
+        if item.kind != "classification" and norm in texts:
+            return True  # identical item (e.g. the same effect stated for several species)
+        return item.kind == "excerpt" and any(
+            norm in t or (len(t) > 40 and t in norm) for t in texts
+        )
+
+    def take(index: int, item: ContextItem) -> None:
+        nonlocal budget, evidence_count
+        kept.add(index)
+        texts.append(_normalise(item.text))
+        budget -= item.tokens
+        if item.kind != "classification":
+            evidence_count += 1
+
+    # pass 1: classifications (always) and the reserved kinds, up to their slot count
+    used = dict.fromkeys(reserved, 0)
+    for index, item in enumerate(eligible):
+        if item.kind == "classification":
+            take(index, item)
+        elif (
+            item.kind in reserved
+            and used[item.kind] < reserved[item.kind]
+            and evidence_count < max_items
+        ):
+            if duplicate(item) or item.tokens > budget:
+                continue
+            used[item.kind] += 1
+            take(index, item)
+    # pass 2: everything else in priority order
+    for index, item in enumerate(eligible):
+        if index in kept or duplicate(item):
+            continue
+        if evidence_count >= max_items or item.tokens > budget:
+            omitted += 1
+            continue
+        take(index, item)
+
+    chosen = [item for index, item in enumerate(eligible) if index in kept]
+    counters: dict[str, int] = {}
+    for item in chosen:
+        prefix = _PREFIX[item.kind]
+        counters[prefix] = counters.get(prefix, 0) + 1
+        item.label = f"{prefix}{counters[prefix]}"
+    notes = []
+    if omitted:
+        notes.append(
+            f"{omitted} further evidence item(s) were found but left out to stay within the context limit."
+        )
+    if excluded:
+        notes.append(
+            f"{excluded} evidence item(s) from sources not registered as redistributable were not sent to "
+            "the cloud model (licensing guard)."
+        )
+    return EvidenceContext(chosen, omitted, excluded, notes)
+
+
+def render(context: EvidenceContext) -> str:
+    """Prompt text. Source text is wrapped in tags and its angle brackets are escaped, so retrieved
+    documents cannot close the data block or inject instructions as markup."""
+    blocks = []
+    for item in context.items:
+        attrs = [f'id="{item.label}"', f'role="{item.role}"']
+        for name, value in (("source", item.source_code), ("evidence_type", _type_label(item.evidence_type)),
+                            ("document", item.external_id), ("location", item.location)):  # fmt: skip
+            if value:
+                attrs.append(f'{name}="{_escape(value)}"')
+        tag = {"classification": "classification", "fact": "fact"}.get(item.kind, "evidence")
+        qualifiers = "".join(f"\n[{_escape(q)}]" for q in item.qualifiers)
+        blocks.append(f"<{tag} {' '.join(attrs)}>\n{_escape(item.text)}{qualifiers}\n</{tag}>")
+    return "\n\n".join(blocks)
+
+
+def _escape(text: str) -> str:
+    # U+2039/U+203A single angle quotation marks replace < and >.
+    return text.replace("<", chr(0x2039)).replace(">", chr(0x203A)).replace(chr(34), "'")

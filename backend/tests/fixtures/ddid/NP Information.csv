@@ -1,0 +1,4 @@
+org_id,np_id,FHDI_Herb_ID,SMILES,pref_name,pubchem_cid,Molecular_Weight
+NPO1,NPC1,H00100,CC(C)CC,hyperforin,441298,536.8
+NPO1,NPC1,H00100,CC(C)CC,hyperforin,441298,536.8
+NPO9,NPC2,H09999,C,testine,NA,16

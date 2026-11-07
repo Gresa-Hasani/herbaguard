@@ -58,10 +58,11 @@ Short records of decisions that shape HerbaGuard. Status values: *Accepted*, *Su
 
 ## ADR-009 — LLM provider: local Ollama, extractive fallback
 
-- **Status:** Accepted (Phase 5, 2026-11-04 — team decision)
-- **Context:** Options were a hosted API (best quality, paid key, questions leave the machine), a local model via Ollama (free, private, CPU-only on the development machine) or extractive-only (no generation). Judges must be able to run the app without a key.
-- **Decision:** Local Ollama (`/api/chat`, default `qwen2.5:3b`, temperature 0, fixed seed) behind a small `ChatModel` protocol. Extractive mode (verbatim quotes with citations) is always available and is used automatically when Ollama is unreachable, when the user asks for it, or when a generated answer fails citation validation twice. `HERBAGUARD_ASSISTANT_PROVIDER=none` disables generation entirely.
-- **Consequences:** No API key and no data leaves the machine. Answer quality is limited by a 3B model on CPU and latency is several seconds to tens of seconds; the citation validator, not the model, is what guarantees grounding. A hosted provider can be added as another `ChatModel` without changing the service.
+- **Status:** Accepted (Phase 5; was pending since Phase 0).
+- **Decision:** A provider-independent interface (`ai/providers/`) with three adapters over plain HTTP: **Ollama (default, local, `qwen3:4b`)**, Anthropic and OpenAI (optional; key and model only from configuration). An `extractive` mode composes answers from stored excerpts without a model. Provider and optional fallback are chosen by configuration only; HerbaGuard never switches provider on its own and records which provider answered. Details: [../ai/llm-providers.md](../ai/llm-providers.md).
+- **Reason:** The platform must run end to end without paid services (judges, local development), while allowing a stronger hosted model when available.
+- **Consequences:** CPU-only inference is slow (~1–2 min per answer on the development machine); cloud adapters are contract-tested with mocked HTTP until keys are available; cloud providers receive source text only under the licensing guard.
+- **History:** An earlier variant on `main` (2026-11-04) used local Ollama (`qwen2.5:3b`) behind a `ChatModel` protocol with an automatic extractive fallback for the Evidence Assistant (`/assistant`). It was replaced by this provider-independent interface when the Phase 5 AI/RAG branch was merged; see ADR-025 and ADR-026.
 
 ## ADR-010 — Python packaging with pip
 
@@ -124,12 +125,40 @@ Short records of decisions that shape HerbaGuard. Status values: *Accepted*, *Su
 - **Context:** Phase 4 returned paths and a count of qualifying paths. An empty list could mean "herb not identified", "no herb effect stored", "drug not in FDA's table" or "no shared target", and the paths endpoint showed the mechanism-finding caveat even when there was no path. Opposite statements (induction and inhibition) were not detected.
 - **Decision:** A pure function `assess_mechanism` gives each pair one finding: `mechanism_supported`, `conflicting_mechanism_evidence`, `experimental_mechanism_evidence_only`, `insufficient_mechanism_evidence`, `no_documented_mechanism_found` or `not_assessed`, with an explanation that never implies safety. Rule 7 makes conflicting targets non-qualifying. Only `mechanism_supported` can influence the A–E class (unchanged: B when no statement gives A). Hedged source wording is stored and shown, not scored.
 - **Consequences:** No change to any Phase 3 result. Users can see why a mechanism result is empty. Rules: [../api/mechanism-paths.md](../api/mechanism-paths.md).
-## ADR-021 — Embeddings from Ollama (`all-minilm`, 384-d) instead of sentence-transformers
+
+## ADR-021 — Model-independent retrieval index (segments + per-model embeddings)
+
 - **Status:** Accepted (Phase 5)
+- **Context:** Phase 1 reserved `chunk.embedding vector(384)` (never populated). A fixed column ties the schema to one model, cannot hold a benchmark of several models, and gives no stale detection. Chunks are also the canonical citation text used by Phase 2 validation, so they cannot be re-cut for retrieval.
+- **Decision:** Migration 0005 adds `retrieval_segment` (character ranges of chunk text, strategy + version, chunk/text hashes, full-text vector) and `segment_embedding` (one vector per segment and model, unconstrained dimension with a CHECK against `dimension`, model version, provider, hash, timestamp; partial HNSW index per model). The unused chunk vector column is dropped. Indexing is an incremental CLI run (`herbaguard ai index`) recorded as an ingestion run.
+- **Consequences:** Models and dimensions can be changed or compared without migrations; vectors of different models/versions are never compared; only new or changed text is re-embedded; the index is derived data and can be rebuilt. The Phase 1 vector test was ported to the new tables (same intent, plus a two-model check).
+
+## ADR-022 — The language model explains; code decides and validates
+
+- **Status:** Accepted (Phase 5)
+- **Decision:** The AI layer never classifies. `/ai/ask` calls the existing interaction service and returns its classification unchanged; the model receives it as context. Model output is structured JSON citing context ids and is validated in code: invalid citations and unsupported paragraphs are removed; a different class letter, a safety claim, a medical directive, or nothing left → the answer is rejected (`rejected_by_validation`) and not shown. Citation URLs and excerpts are always taken from the database. Token-limited (partial) output is a failure.
+- **Alternatives:** Trusting prompt instructions alone (rejected: not verifiable); an LLM judge (rejected as sole check: not deterministic, same failure modes).
+- **Consequences:** Some correct answers are rejected (conservative patterns); validation does not prove paraphrase faithfulness — answers always ship with verbatim excerpts and manual review is part of the evaluation.
+
+## ADR-023 — Deterministic question understanding
+
+- **Status:** Accepted (Phase 5)
+- **Decision:** Entities are found by n-gram lookup in the existing name tables and resolved with the existing services (ambiguity → HTTP 409 with candidates, never a guess; brand names through RxNav, at most three lookups); intent comes from fixed rules. No LLM is involved in entity resolution.
+- **Consequences:** Reproducible scoping of retrieval and classification; misspellings and names not in the tables are not recognised (the question is then answered only from high-similarity passages or reported as insufficient).
+
+## ADR-024 — No storage of questions or answers
+
+- **Status:** Accepted (Phase 5)
+- **Decision:** `/ai/ask` stores nothing about the request; the `ai_request` log event holds only metrics (intent, status, provider, model, durations, counts, tokens, validation issue counts). Evaluation reports are files produced on demand.
+- **Consequences:** No retention or deletion obligations for user questions in the MVP; usage analytics beyond these metrics are not possible.
+
+## ADR-025 — Embeddings from Ollama (`all-minilm`, 384-d) instead of sentence-transformers
+- **Status:** Superseded by ADR-021 (migration 0005 removed `chunk.embedding`). Recorded on `main` as ADR-021 on 2026-11-04; renumbered when the branches were merged.
 - **Context:** The schema reserved `chunk.embedding vector(384)` for `bge-small-en-v1.5` via sentence-transformers. That adds PyTorch (~1 GB) to the API image, and ADR-009 already requires Ollama.
 - **Decision:** Embed with an Ollama embedding model returning 384 dimensions (default `all-minilm`), so no migration is needed. `herbaguard ai embed` fills the column (resumable; records `embedding_model`); vector search only uses chunks embedded with the configured model. Until chunks are embedded, retrieval is full-text only and the status endpoint says so.
 - **Consequences:** One runtime dependency (Ollama) for generation and embeddings. `all-minilm` is a general-domain model; full-text search (exact drug names) and entity filtering compensate. Changing to a model with another dimension needs a migration.
-## ADR-022 — Assistant guardrails are deterministic and run before the model
-- **Status:** Accepted (Phase 5)
+
+## ADR-026 — Assistant guardrails are deterministic and run before the model
+- **Status:** Superseded by ADR-022 for the `/ai` endpoints; the guardrails themselves (emergency referral, dosing decline with the narrower dosing patterns, clarification of ambiguous names, classes only from the interaction service) are kept in `ai/guardrails.py` and `ai/service.py`. The `/assistant` endpoint was removed. Recorded on `main` as ADR-022 on 2026-11-04; renumbered when the branches were merged.
 - **Decision:** (1) Emergency wording → fixed referral text, no retrieval or generation. (2) Dosing questions → fixed "no individual dosing advice" text plus the posology passages, no generation. (3) Ambiguous herb names → clarification with candidates. (4) Interaction classes come only from `domain/interactions.py` via the interaction check and are given to the model as facts; an answer that names a class the rules did not compute is rejected. (5) Every citation must resolve to a retrieved passage, ≥60 % of factual sentences must be cited, and PMIDs/DOIs/URLs must appear in the passages; safety assertions ("is safe to take") are rejected. One regeneration, then the extractive answer. (6) Retrieved text is fenced as data and the model is told to ignore instructions in it.
 - **Consequences:** Behaviour on the safety-relevant paths does not depend on the model and is pinned by tests (`tests/ai`, `tests/api/test_assistant_api.py`). Pattern-based screening can miss unusual phrasings; the persistent disclaimer and referral text are shown on every answer.

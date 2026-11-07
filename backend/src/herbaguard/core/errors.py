@@ -12,6 +12,7 @@ class ErrorCode(StrEnum):
     NOT_FOUND = "not_found"
     CONFLICT = "conflict"
     AMBIGUOUS_ENTITY = "ambiguous_entity"
+    TOO_MANY_REQUESTS = "too_many_requests"
     UPSTREAM_UNAVAILABLE = "upstream_unavailable"
     SERVICE_UNAVAILABLE = "service_unavailable"
     INTERNAL_ERROR = "internal_error"
@@ -48,6 +49,18 @@ class UpstreamUnavailableError(HerbaGuardError):
     code = ErrorCode.UPSTREAM_UNAVAILABLE
 
 
+class BadRequestError(HerbaGuardError):
+    status_code = 400
+    code = ErrorCode.BAD_REQUEST
+
+
 class ServiceUnavailableError(HerbaGuardError):
     status_code = 503
     code = ErrorCode.SERVICE_UNAVAILABLE
+
+
+class TooManyRequestsError(HerbaGuardError):
+    """A bounded resource (e.g. local model inference) is busy."""
+
+    status_code = 429
+    code = ErrorCode.TOO_MANY_REQUESTS

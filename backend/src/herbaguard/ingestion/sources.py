@@ -190,6 +190,30 @@ SOURCES: tuple[SourceDefinition, ...] = (
         licence_status=LicenceStatus.VERIFIED,
         redistributable=True,
     ),
+    SourceDefinition(
+        code="ddid",
+        name="DDID — Drug–Diet (herb and food) Interaction Database",
+        provider="Hangzhou Normal University (bddg.hznu.edu.cn)",
+        priority="P1",
+        access_method="download",
+        homepage_url="https://bddg.hznu.edu.cn/ddid/download/",
+        is_official=True,
+        licence="Not stated in the downloaded files; terms of use not yet verified",
+        licence_status=LicenceStatus.TO_VERIFY,
+        redistributable=False,
+    ),
+    SourceDefinition(
+        code="herbaguard_ai_index",
+        name="HerbaGuard retrieval index (segments and embeddings derived from stored text)",
+        provider="HerbaGuard team",
+        priority="P0",
+        access_method="internal",
+        homepage_url="docs/ai/hybrid-retrieval.md",
+        is_official=False,
+        licence="Derived index; each segment keeps the licence of its source document",
+        licence_status=LicenceStatus.VERIFIED,
+        redistributable=False,
+    ),
 )
 
 
