@@ -153,6 +153,14 @@ Question set: `data/evaluation/rag_livertox_v1.yaml` (17 questions, checked on t
 - **No absence inference:** if no label is mapped, nothing is added. There is no "no DSLD product" fact, because a missing product is not evidence of safety or of anything else.
 - **Validation:** a paragraph citing only `P#` items is rejected (critical) if it claims an interaction, no interaction, safety, a clinical conclusion, efficacy, a contraindication or a dose (`product_label_as_clinical`, `product_label_as_efficacy`, `product_label_dosing`). Wording attributed to the label ("the label states …") is allowed; a class letter is rejected by the existing classification check. `P#` items never reach `interaction_assertion`, the A–E classification or any other evidence source.
 
+### Read-only UI endpoint (frontend phase)
+
+`GET /api/v1/plants/{wfo_id}/product-labels?limit=&offset=` exposes the same stored labels to the Herb Explorer so they can be shown in a separate, warned section. It is read-only and does not touch retrieval, prompts, context assembly or classification.
+
+- **Scope:** the plant's `dsld_ingredient` links must resolve to its taxon; unresolved, ambiguous and candidate ingredient names are excluded. The response is paginated and total reflects only eligible labels.
+- **Response:** `dsld_id`, product name, brand, market status, UPC, label URL, matched ingredients with labelled amount/unit/category, verbatim "Precautions" statements, label statement count, `licence_status`, `redistributable: false` and provenance for the product and Supplement Facts records.
+- **UI contract:** the frontend renders these only under "Product labels (NIH DSLD)", with the warning "Manufacturer label information — not clinical evidence, not a HerbaGuard finding. Licence unverified." It does not export label text or present it as interaction evidence. Empty coverage is described as a coverage statement, never as safety.
+
 ## 5. Reviewed name overrides (2026-11-07 audit, P0.1)
 
 Some GBIF vernacular names in `taxon_name` are wrong for the plant, or are shared by several plants. `backend/src/herbaguard/domain/name_overrides.py` holds reviewed overrides, each with its evidence. They are applied at lookup time by `match_names`, `resolve_herb` (`/plants/resolve`, interaction and mechanism checks, AI question analysis) and the bulk dataset matcher. The stored name rows are kept.

@@ -6,7 +6,7 @@ import uuid
 from collections import Counter
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from herbaguard.api.schemas.resources import (
     Candidate,
@@ -15,6 +15,8 @@ from herbaguard.api.schemas.resources import (
     Identifiers,
     IndicationOut,
     MonographSummary,
+    PlantCoverage,
+    TaxonCoverage,
     TaxonDetail,
     TaxonSummary,
 )
@@ -22,6 +24,8 @@ from herbaguard.core.errors import NotFoundError
 from herbaguard.domain.name_overrides import override_for
 from herbaguard.models import (
     EvidenceItem,
+    ExternalEntity,
+    ExternalRelation,
     HerbalSubstance,
     HerbalSubstanceEvidence,
     Indication,
@@ -30,6 +34,7 @@ from herbaguard.models import (
 )
 from herbaguard.repositories import evidence as evidence_repo
 from herbaguard.repositories import plants as repo
+from herbaguard.repositories.external import NIH_DSLD
 from herbaguard.services.mappers import evidence_ref, name_out, provenance_out
 
 COMMON_NAME_NOTE = (
@@ -273,3 +278,108 @@ def detail(session: Session, wfo_id: str) -> TaxonDetail:
             "active_interaction_statements": statements or 0,
         },
     )
+
+
+# Supplementary research sources whose taxon mappings are reported (never as evidence of a class).
+SUPPLEMENTARY_SOURCES = ("ddid", "supp_ai", "livertox")
+
+
+def plant_coverage(session: Session) -> PlantCoverage:
+    """Per-taxon coverage by kind of material, from the stored records (no estimates).
+
+    Counting follows ``plant_detail``: distinct evidence items per relation over the taxon's
+    curated substances. A taxonomic record, a product label and a clinical record are reported
+    separately and never summed.
+    """
+    taxa = list(session.scalars(select(Taxon).order_by(Taxon.scientific_name)))
+
+    relation_rows = session.execute(
+        select(
+            HerbalSubstance.taxon_id,
+            HerbalSubstanceEvidence.relation,
+            func.count(func.distinct(HerbalSubstanceEvidence.evidence_item_id)),
+        )
+        .join(HerbalSubstance, HerbalSubstance.id == HerbalSubstanceEvidence.herbal_substance_id)
+        .where(HerbalSubstance.in_curated_scope.is_(True))
+        .group_by(HerbalSubstance.taxon_id, HerbalSubstanceEvidence.relation)
+    ).all()
+    relations: dict[uuid.UUID, dict[str, int]] = {}
+    for taxon_id, relation, n in relation_rows:
+        relations.setdefault(taxon_id, {})[relation] = int(n)
+
+    monograph_rows = session.execute(
+        select(HerbalSubstance.taxon_id, func.count(func.distinct(EvidenceItem.id)))
+        .join(
+            HerbalSubstanceEvidence,
+            HerbalSubstanceEvidence.herbal_substance_id == HerbalSubstance.id,
+        )
+        .join(EvidenceItem, EvidenceItem.id == HerbalSubstanceEvidence.evidence_item_id)
+        .where(
+            HerbalSubstance.in_curated_scope.is_(True),
+            EvidenceItem.source_code == "ema_hmpc",
+            EvidenceItem.metadata_.has_key("extraction"),
+        )
+        .group_by(HerbalSubstance.taxon_id)
+    ).all()
+    monographs = {taxon_id: int(n) for taxon_id, n in monograph_rows}
+
+    statement_rows = session.execute(
+        select(HerbalSubstance.taxon_id, func.count(InteractionAssertion.id))
+        .join(InteractionAssertion, InteractionAssertion.herbal_substance_id == HerbalSubstance.id)
+        .where(HerbalSubstance.in_curated_scope.is_(True), InteractionAssertion.status == "active")
+        .group_by(HerbalSubstance.taxon_id)
+    ).all()
+    statements = {taxon_id: int(n) for taxon_id, n in statement_rows}
+
+    ingredient = aliased(ExternalEntity)
+    product = aliased(ExternalEntity)
+    dsld_rows = session.execute(
+        select(ingredient.mapped_id, func.count(func.distinct(ExternalRelation.subject_id)))
+        .join(ingredient, ingredient.id == ExternalRelation.object_id)
+        .join(product, product.id == ExternalRelation.subject_id)
+        .where(
+            ExternalRelation.source_code == NIH_DSLD,
+            ExternalRelation.predicate == "lists_ingredient",
+            ingredient.mapped_table == "taxon",
+            ingredient.mapping_status == "resolved",
+            product.kind == "dsld_product",
+        )
+        .group_by(ingredient.mapped_id)
+    ).all()
+    dsld = {taxon_id: int(n) for taxon_id, n in dsld_rows}
+
+    supplementary: dict[uuid.UUID, dict[str, str]] = {}
+    for source_code, mapped_id, status in session.execute(
+        select(ExternalEntity.source_code, ExternalEntity.mapped_id, ExternalEntity.mapping_status)
+        .where(
+            ExternalEntity.source_code.in_(SUPPLEMENTARY_SOURCES),
+            ExternalEntity.mapped_table == "taxon",
+            ExternalEntity.mapping_status.in_(("resolved", "candidate")),
+        )
+        .distinct()
+    ).all():
+        current = supplementary.setdefault(mapped_id, {})
+        # a resolved mapping outranks a candidate one; a candidate is never shown as resolved
+        if current.get(source_code) != "resolved":
+            current[source_code] = status
+
+    items = []
+    for taxon in taxa:
+        rel = relations.get(taxon.id, {})
+        items.append(
+            TaxonCoverage(
+                wfo_id=taxon.wfo_id,
+                scientific_name=taxon.scientific_name,
+                family=taxon.family,
+                taxonomic_status=taxon.taxonomic_status,
+                monograph_documents=monographs.get(taxon.id, 0),
+                fact_sheet_items=rel.get("fact_sheet", 0),
+                drug_label_mentions=rel.get("label_mention", 0),
+                literature_clinical_items=rel.get("literature_clinical", 0),
+                literature_interaction_items=rel.get("literature_interaction", 0),
+                dsld_products=dsld.get(taxon.id, 0),
+                supplementary_sources=supplementary.get(taxon.id, {}),
+                active_interaction_statements=statements.get(taxon.id, 0),
+            )
+        )
+    return PlantCoverage(total=len(items), items=items)

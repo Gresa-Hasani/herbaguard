@@ -17,6 +17,7 @@ import structlog
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, aliased
 
+from herbaguard.ai import answer_cache
 from herbaguard.ai import context as ctx
 from herbaguard.ai.embeddings import EmbeddingProvider
 from herbaguard.ai.generation import GenerationOutcome, extractive_answer, generate, load_prompt
@@ -99,6 +100,7 @@ def ask(
     allow_remote_drug_lookup: bool,
     chain: GenerationChain,
     embeddings: EmbeddingProvider | None,
+    refresh_answer_cache: bool = False,
 ) -> AskResponse:
     if len(question) > settings.ai_question_max_chars:
         raise BadRequestError(
@@ -110,8 +112,9 @@ def ask(
     started = time.perf_counter()
     try:
         response = _ask(
-            session, settings, question.strip(), allow_remote_drug_lookup, chain, embeddings
-        )
+            session, settings, question.strip(), allow_remote_drug_lookup, chain, embeddings,
+            refresh_answer_cache,
+        )  # fmt: skip
     finally:
         semaphore.release()
     logger.info(
@@ -130,6 +133,7 @@ def ask(
         output_tokens=response.generation.output_tokens,
         validation_issues=dict(Counter(i.rule for i in response.validation)),
         failed_attempts=len(response.generation.failed_attempts),
+        answer_cache_hit=response.cache is not None,
     )  # the question and answer text are never logged
     return response
 
@@ -141,6 +145,7 @@ def _ask(
     allow_remote: bool,
     chain: GenerationChain,
     embeddings: EmbeddingProvider | None,
+    refresh_answer_cache: bool = False,
 ) -> AskResponse:
     screening = screen(question)
     if screening.kind is QuestionKind.EMPTY:
@@ -283,6 +288,29 @@ def _ask(
         outcome = GenerationOutcome("answered", "none", "none", None, validation, [], duration_ms=0)
         status = "insufficient_evidence"
     else:
+        # Suggested questions only: a validated answer prepared earlier is served when it is still
+        # valid for exactly this evidence context. Every other question skips this block entirely.
+        cache_id = (
+            answer_cache.suggested_question_id(question)
+            if settings.ai_answer_cache_enabled
+            else None
+        )
+        fingerprint: str | None = None
+        if cache_id is not None:
+            fingerprint = answer_cache.compute_fingerprint(
+                settings=settings, chain_names=tuple(n.value for n in chain.names), qid=cache_id,
+                intent=analysis.intent, expected=expected,
+                personal_advice=analysis.asks_for_personal_advice, partial=partial, context=context,
+                citations=_citations(context, [i.label for i in context.items]),
+                classifications=classifications,
+            )  # fmt: skip
+            if not refresh_answer_cache:
+                hit = answer_cache.lookup(session, settings, cache_id, fingerprint)
+                if hit is not None:
+                    entry, stored = hit
+                    return answer_cache.servable_response(
+                        entry, stored, question=question, retrieval=_retrieval_info(retrieval)
+                    )
         try:
             outcome = generate(settings, chain, question=question, intent=analysis.intent, context=context,
                                expected_classes=expected, personal_advice=analysis.asks_for_personal_advice,
@@ -295,6 +323,20 @@ def _ask(
             ) from None  # fmt: skip
         status = "rejected_by_validation" if outcome.status == "rejected" else (
             "insufficient_evidence" if outcome.validation.insufficient_evidence else "answered")  # fmt: skip
+        response = _response(
+            question, analysis, classifications, context, outcome, status, retrieval
+        )
+        if (
+            cache_id is not None
+            and fingerprint is not None
+            and answer_cache.eligible_for_storage(
+                response, mode=outcome.mode, failed_attempts=len(outcome.attempts)
+            )
+        ):
+            answer_cache.store(
+                session, qid=cache_id, question=question, fingerprint=fingerprint, response=response
+            )
+        return response
     return _response(question, analysis, classifications, context, outcome, status, retrieval)
 
 
@@ -976,17 +1018,21 @@ def _response(
             failed_attempts=outcome.attempts,
             regenerations=outcome.regenerations,
         ),
-        retrieval=RetrievalInfo(
-            mode_requested=retrieval.mode_requested,
-            mode_used=retrieval.mode_used,
-            embedding_model=retrieval.embedding_model,
-            candidates=retrieval.candidates,
-            duration_ms=retrieval.duration_ms,
-            notes=retrieval.notes,
-        )
-        if retrieval
-        else None,
+        retrieval=_retrieval_info(retrieval),
         disclaimer=DISCLAIMER,
+    )
+
+
+def _retrieval_info(retrieval: RetrievalResult | None) -> RetrievalInfo | None:
+    if retrieval is None:
+        return None
+    return RetrievalInfo(
+        mode_requested=retrieval.mode_requested,
+        mode_used=retrieval.mode_used,
+        embedding_model=retrieval.embedding_model,
+        candidates=retrieval.candidates,
+        duration_ms=retrieval.duration_ms,
+        notes=retrieval.notes,
     )
 
 

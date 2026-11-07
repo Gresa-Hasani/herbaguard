@@ -87,6 +87,22 @@ def test_ollama_contract() -> None:
     )
 
 
+def test_ollama_keep_alive_is_sent_only_when_configured() -> None:
+    reply = {"model": "qwen3:4b", "message": {"role": "assistant", "content": "{}"},
+             "done_reason": "stop"}  # fmt: skip
+    seen: list[httpx.Request] = []
+    ollama(lambda r: httpx.Response(200, json=reply), seen).generate(REQUEST)
+    assert "keep_alive" not in json.loads(seen[0].content)
+
+    configured: list[httpx.Request] = []
+    provider = OllamaProvider(base_url="http://ollama.test", model="qwen3:4b", timeout=5,
+                              keep_alive="30m",
+                              transport=transport(lambda r: httpx.Response(200, json=reply), configured))  # fmt: skip
+    provider.generate(REQUEST)
+    assert json.loads(configured[0].content)["keep_alive"] == "30m"
+    assert settings().ollama_keep_alive == "30m"
+
+
 def test_anthropic_contract_uses_forced_tool_for_structured_output() -> None:
     seen: list[httpx.Request] = []
     reply = {"model": "configured-model", "stop_reason": "tool_use",

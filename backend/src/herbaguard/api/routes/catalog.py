@@ -23,6 +23,8 @@ from herbaguard.api.schemas.resources import (
     HerbResolution,
     InteractionCheckRequest,
     InteractionCheckResponse,
+    PlantCoverage,
+    ProductLabelOut,
     SourceOut,
     TaxonDetail,
     TaxonSummary,
@@ -34,6 +36,7 @@ from herbaguard.services import drugs as drug_service
 from herbaguard.services import evidence as evidence_service
 from herbaguard.services import interactions as interaction_service
 from herbaguard.services import plants as plant_service
+from herbaguard.services import product_labels as product_label_service
 
 router = APIRouter()
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -80,6 +83,23 @@ def resolve_plant(
 @router.get("/plants/{wfo_id}", response_model=TaxonDetail, tags=["plants"], responses=ERRORS)
 def plant_detail(session: SessionDep, wfo_id: WfoId) -> TaxonDetail:
     return plant_service.detail(session, wfo_id)
+
+
+@router.get(
+    "/plants/{wfo_id}/product-labels",
+    response_model=Page[ProductLabelOut],
+    tags=["plants", "product_labels"],
+    summary="Stored NIH DSLD product labels for a plant (manufacturer information only)",
+    description="Labels whose matched ingredient maps to this plant by an exact, resolved name. "
+    "Product information, never clinical evidence or an interaction class. The NIH DSLD licence is "
+    "unverified and the content is not redistributable.",
+    responses=ERRORS,
+)
+def plant_product_labels(
+    session: SessionDep, wfo_id: WfoId, limit: Limit = 20, offset: Offset = 0
+) -> Page[ProductLabelOut]:
+    items, total = product_label_service.list_for_plant(session, wfo_id, limit=limit, offset=offset)
+    return Page(items=items, total=total, limit=limit, offset=offset)
 
 
 @router.get(
@@ -239,6 +259,21 @@ def check_interactions(
 )
 def list_sources(session: SessionDep) -> list[SourceOut]:
     return evidence_service.sources(session)
+
+
+@router.get(
+    "/coverage/plants",
+    response_model=PlantCoverage,
+    tags=["sources"],
+    summary="Per-taxon coverage by kind of material",
+    description=(
+        "For every taxon in the index: taxonomic record, regulatory material, indexed "
+        "literature, supplementary-source mappings and manufacturer product labels, reported "
+        "separately. A product label or a taxonomic record is not clinical evidence."
+    ),
+)
+def plant_coverage(session: SessionDep) -> PlantCoverage:
+    return plant_service.plant_coverage(session)
 
 
 @router.get(

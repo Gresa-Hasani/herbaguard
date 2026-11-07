@@ -155,6 +155,14 @@ def sources(session: Session) -> list[SourceOut]:
         select(SourceRecord.source_code, func.count()).group_by(SourceRecord.source_code)
     ).all()
     counts: dict[str, int] = {code: int(n) for code, n in count_rows}
+    latest_record = {
+        r.source_code: r
+        for r in session.scalars(
+            select(SourceRecord)
+            .distinct(SourceRecord.source_code)
+            .order_by(SourceRecord.source_code, SourceRecord.retrieved_at.desc())
+        )
+    }
     return [
         SourceOut(
             code=s.code,
@@ -168,6 +176,15 @@ def sources(session: Session) -> list[SourceOut]:
             last_run_status=latest[s.code].status if s.code in latest else None,
             last_run_finished_at=latest[s.code].finished_at if s.code in latest else None,
             records=int(counts.get(s.code, 0)),
+            licence_url=s.licence_url,
+            attribution=s.attribution,
+            access_method=s.access_method,
+            latest_retrieved_at=(
+                latest_record[s.code].retrieved_at if s.code in latest_record else None
+            ),
+            latest_source_version=(
+                latest_record[s.code].source_version if s.code in latest_record else None
+            ),
         )
         for s in repo.sources(session)
     ]

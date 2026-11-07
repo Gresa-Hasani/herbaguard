@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -124,6 +124,18 @@ class RetrievalInfo(BaseModel):
     notes: list[str]
 
 
+class CacheInfo(BaseModel):
+    """Present only when the answer was served from the validated answer cache."""
+
+    served_from_cache: bool = True
+    generated_at: datetime
+    original_generation_ms: int = Field(
+        description="How long the language model took when this answer was generated; no model "
+        "ran for the request that returned it"
+    )
+    validation_status: str = "passed"
+
+
 class AskResponse(BaseModel):
     status: Literal[
         "answered",
@@ -146,6 +158,7 @@ class AskResponse(BaseModel):
     generation: GenerationInfo
     retrieval: RetrievalInfo | None
     disclaimer: str
+    cache: CacheInfo | None = None
 
 
 class RetrieveRequest(BaseModel):

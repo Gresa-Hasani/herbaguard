@@ -2,21 +2,31 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Route, Routes } from 'react-router-dom'
 
-import { Layout } from './components/Layout'
-import { NAV_ITEMS } from './lib/constants'
+import { AppLayout } from './components/AppLayout'
+import { PublicLayout } from './components/PublicLayout'
+import { AboutPage } from './pages/AboutPage'
+import { AssistantPage } from './pages/AssistantPage'
+import { ExplorerPage } from './pages/ExplorerPage'
 import { HomePage } from './pages/HomePage'
+import { InteractionPage } from './pages/InteractionPage'
 import { NotFoundPage } from './pages/NotFoundPage'
-import { PlaceholderPage } from './pages/PlaceholderPage'
+import { SourcesPage } from './pages/SourcesPage'
 
 export function AppRoutes() {
   return (
     <Routes>
-      <Route element={<Layout />}>
+      {/* Public product experience */}
+      <Route element={<PublicLayout />}>
         <Route index element={<HomePage />} />
-        {NAV_ITEMS.map((item) => (
-          <Route key={item.to} path={item.to} element={<PlaceholderPage item={item} />} />
-        ))}
+        <Route path="about" element={<AboutPage />} />
+        <Route path="sources" element={<SourcesPage />} />
         <Route path="*" element={<NotFoundPage />} />
+      </Route>
+      {/* Application experience */}
+      <Route element={<AppLayout />}>
+        <Route path="interactions" element={<InteractionPage />} />
+        <Route path="explorer" element={<ExplorerPage />} />
+        <Route path="assistant" element={<AssistantPage />} />
       </Route>
     </Routes>
   )

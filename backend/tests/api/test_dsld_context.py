@@ -189,6 +189,50 @@ def test_product_labels_do_not_change_the_classification_or_assertions(
     assert before == after
 
 
+def test_product_label_endpoint_returns_structured_stored_rows(
+    api: TestClient, imported: None
+) -> None:
+    response = api.get("/api/v1/plants/wfo-0000728093/product-labels")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["total"] == 2
+    product = next(p for p in body["items"] if p["dsld_id"] == "1001")
+    assert product["product_name"] == "SJW 300"
+    assert product["brand"] == "Test Brand"
+    assert product["market_status"] == "On Market"
+    assert product["upc"] == "0 00000 00001 1"
+    assert product["label_url"] == "https://dsld.od.nih.gov/label/1001"
+    assert product["precautions"] == ["Consult your physician if you take anticoagulants."]
+    assert product["ingredients"] == [
+        {
+            "ingredient": "St John's wort",
+            "amount_per_serving": "300",
+            "unit": "mg",
+            "category": "botanical",
+        }
+    ]
+    assert product["source_code"] == "nih_dsld"
+    assert product["licence_status"] == "to_verify"
+    assert product["redistributable"] is False
+    assert {p["source_code"] for p in product["provenance"]} == {"nih_dsld"}
+    assert {p["extraction_method"] for p in product["provenance"]} == {"dsld_csv_v1"}
+
+
+def test_product_label_endpoint_paginates(api: TestClient, imported: None) -> None:
+    first = api.get("/api/v1/plants/wfo-0000728093/product-labels?limit=1&offset=0").json()
+    second = api.get("/api/v1/plants/wfo-0000728093/product-labels?limit=1&offset=1").json()
+    assert first["total"] == second["total"] == 2
+    assert [p["dsld_id"] for p in first["items"]] == ["1001"]
+    assert [p["dsld_id"] for p in second["items"]] == ["1004"]
+
+
+def test_product_label_endpoint_excludes_ambiguous_mappings(
+    api: TestClient, imported: None
+) -> None:
+    body = api.get("/api/v1/plants/wfo-0001009785/product-labels").json()
+    assert body["total"] == 0 and body["items"] == []
+
+
 def test_product_labels_are_not_sent_to_cloud_models() -> None:
     item = ctx.product_label_item(
         text="NIH DSLD label text.", title="NIH DSLD: test", location="test",

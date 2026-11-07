@@ -94,6 +94,10 @@ class Settings(BaseSettings):
     llm_max_regenerations: int = Field(default=1, ge=0, le=3)
     ollama_base_url: str = "http://127.0.0.1:11434"
     ollama_num_ctx: int = Field(default=8192, ge=2048)
+    # How long Ollama keeps the model in memory after a request. Ollama's own default is 5 minutes;
+    # after that the next question pays the full model load (measured ~100 s on the CPU-only
+    # development machine). It does not change what is generated.
+    ollama_keep_alive: str = "30m"
     anthropic_api_key: SecretStr | None = None
     anthropic_model: str | None = None  # no default: the model is chosen by the operator
     anthropic_base_url: str = "https://api.anthropic.com"
@@ -141,6 +145,10 @@ class Settings(BaseSettings):
     ai_context_max_tokens: int = Field(default=2600, ge=500, le=100000)
     ai_context_max_items: int = Field(default=8, ge=1, le=50)
     ai_max_concurrent_requests: int = Field(default=2, ge=1, le=64)
+    # Validated-answer cache for the suggested questions (see ai/answer_cache.py). A cached answer is
+    # served only while its fingerprint still matches the current evidence, prompts and validation.
+    ai_answer_cache_enabled: bool = True
+    ai_answer_cache_max_age_days: int = Field(default=30, ge=1, le=365)
     # Questions in which no herb, drug, enzyme, transporter or constituent is recognised: retrieved
     # passages are used only if their semantic similarity reaches this value (keyword-only matches
     # are not used), so unrelated text is not presented as an answer. Benchmarkable.

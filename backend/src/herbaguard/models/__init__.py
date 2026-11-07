@@ -3,6 +3,7 @@
 Importing this package registers every table on ``Base.metadata`` (used by Alembic).
 """
 
+from herbaguard.models.answer_cache import AnswerCache
 from herbaguard.models.base import Base
 from herbaguard.models.evidence import (
     Chunk,
@@ -34,6 +35,7 @@ from herbaguard.models.retrieval import RetrievalSegment, SegmentEmbedding
 from herbaguard.models.taxonomy import HerbalSubstance, Taxon, TaxonName
 
 __all__ = [
+    "AnswerCache",
     "Base",
     "Chunk",
     "Constituent",

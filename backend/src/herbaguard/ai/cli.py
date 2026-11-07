@@ -102,6 +102,88 @@ def status(model: ModelOption = None) -> None:
         session.close()
 
 
+@ai_app.command("prepare-answers")
+def prepare_answers_command(
+    refresh: Annotated[
+        bool, typer.Option("--refresh", help="Regenerate even if a valid answer exists.")
+    ] = False,
+    question: Annotated[
+        list[int] | None,
+        typer.Option("--question", help="Only suggested question N (1-3); repeatable."),
+    ] = None,
+) -> None:
+    """Generate and cache validated answers for the suggested questions (one at a time).
+
+    Uses the normal pipeline (retrieval, evidence assembly, generation, validation); only answers
+    that pass validation are stored. Local CPU generation takes minutes per question.
+    """
+    from herbaguard.ai.answer_cache import SUGGESTED_QUESTIONS
+    from herbaguard.ai.answer_prepare import prepare_answers
+    from herbaguard.ai.embeddings import build_embeddings
+    from herbaguard.ai.providers.registry import generation_chain
+
+    settings = get_settings()
+    configure_logging(settings)
+    chosen = question or list(range(1, len(SUGGESTED_QUESTIONS) + 1))
+    if any(n < 1 or n > len(SUGGESTED_QUESTIONS) for n in chosen):
+        typer.echo(f"--question must be between 1 and {len(SUGGESTED_QUESTIONS)}.", err=True)
+        raise typer.Exit(code=2)
+    questions = [SUGGESTED_QUESTIONS[n - 1] for n in sorted(set(chosen))]
+
+    def announce(index: int, text: str) -> None:
+        typer.echo(f"[{index}/{len(questions)}] {text}")
+
+    results = prepare_answers(
+        get_session_factory(), settings, generation_chain(settings), build_embeddings(settings),
+        refresh=refresh, questions=questions, on_start=announce,
+    )  # fmt: skip
+    for r in results:
+        typer.echo(f"  -> {r.outcome} in {r.seconds:.1f}s: {r.detail}")
+    if any(r.outcome in ("failed", "not_cached") for r in results):
+        raise typer.Exit(code=1)
+
+
+@ai_app.command("answers-status")
+def answers_status() -> None:
+    """Show the stored answers for the suggested questions and whether they can still be served.
+
+    Whether an entry matches the *current evidence* is decided per request (the fingerprint is
+    recomputed from the assembled context), so this shows age, versions and validation only.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    from herbaguard.ai import answer_cache
+
+    settings = get_settings()
+    session = get_session_factory()()
+    try:
+        entries = answer_cache.stored_entries(session)
+        now = datetime.now(UTC)
+        for number, text in enumerate(answer_cache.SUGGESTED_QUESTIONS, start=1):
+            entry = entries.get(answer_cache.question_id(text))
+            typer.echo(f"[{number}] {text}")
+            if entry is None:
+                typer.echo("    not prepared")
+                continue
+            problems = []
+            if entry.schema_version != answer_cache.CACHE_SCHEMA_VERSION:
+                problems.append("cache schema changed")
+            if entry.validation_version != answer_cache.validation_version():
+                problems.append("validation code changed")
+            if entry.generated_at < now - timedelta(days=settings.ai_answer_cache_max_age_days):
+                problems.append("older than the maximum age")
+            typer.echo(
+                f"    {entry.validation_status} · {entry.provider}/{entry.model} · generated "
+                f"{entry.generated_at:%Y-%m-%d %H:%M} UTC in {entry.generation_ms / 1000:.0f}s · "
+                f"citations {', '.join(entry.citation_labels)}"
+            )
+            typer.echo(
+                f"    {'; '.join(problems) if problems else 'servable if the evidence is unchanged'}"
+            )
+    finally:
+        session.close()
+
+
 DEFAULT_DATASET = "../data/evaluation/rag_baseline_v1.yaml"
 
 

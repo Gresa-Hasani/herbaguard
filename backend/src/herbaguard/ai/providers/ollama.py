@@ -34,6 +34,7 @@ class OllamaProvider:
         model: str,
         timeout: float,
         num_ctx: int = 8192,
+        keep_alive: str | None = None,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         if not model:
@@ -44,6 +45,7 @@ class OllamaProvider:
         self.model = model
         self.timeout = timeout
         self.num_ctx = num_ctx
+        self.keep_alive = keep_alive
         self._transport = transport
 
     def _client(self, timeout: float | None = None) -> httpx.Client:
@@ -69,6 +71,8 @@ class OllamaProvider:
                 *({"role": m.role, "content": m.content} for m in request.messages),
             ],
         }
+        if self.keep_alive:
+            body["keep_alive"] = self.keep_alive
         if request.json_schema is not None:
             body["format"] = request.json_schema
         started = time.perf_counter()
