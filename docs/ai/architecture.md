@@ -50,7 +50,7 @@ AskResponse                                 classification (copied from the serv
 | `ai/context.py` | Evidence assembly and prompt rendering | API schemas of Phases 3–4 |
 | `ai/generation.py` | Prompts, provider chain, extractive mode | providers, validation |
 | `ai/validation.py` | Output parsing and validation (pure), incl. `experimental_as_clinical` | — |
-| `ai/guardrails.py` | Emergency / dosing / empty-question screening before any retrieval or model call (patterns adapted from `main` e491d02) | — |
+| `ai/guardrails.py` | Emergency / dosing / empty-question screening before any retrieval or model call (patterns from the earlier Evidence Assistant on `main`, e491d02 and 3861b91, including the narrower dosing patterns) | — |
 | `ai/service.py` | Orchestration, concurrency limit, metrics logging | all of the above, existing services |
 | `ai/evaluation.py`, `ai/cli.py` | Evaluation framework; `herbaguard ai index/status/evaluate-*` | — |
 | `api/routes/ai.py` | `/api/v1/ai/ask`, `/retrieve`, `/providers`, `/health` | service, registry |
@@ -87,7 +87,12 @@ Retrieval, evidence assembly, model invocation and validation are separate modul
 
 See [hybrid-retrieval.md](hybrid-retrieval.md) §6 and [embedding-models.md](embedding-models.md) §5: no source list, corpus size or model is hard-coded; new sources become searchable after `herbaguard ai index`.
 
-## 6. Reconciliation with the parallel implementation on `main` (2026-11-06)
+## 6. Replacement of the earlier Evidence Assistant from `main`
 
-`main` (commits e491d02, 3861b91) contains a second assistant (`/assistant`, `ai/llm.py`, `services/assistant.py`). This branch keeps its own provider-independent architecture and ports only what was missing: emergency screening, the dosing decline with quoted posology, and one controlled regeneration with the validation problems fed back (`llm_max_regenerations`, default 1). Evidence pinning already exists (decisive statements always enter the context). The explicit `extractive` fallback is the documented default in `.env.example` and Docker Compose. The `/assistant` routes and their Ollama-only client are not ported (duplicates).
+`main` (commits e491d02, 3861b91) contained an earlier assistant (`/assistant`, `ai/llm.py`, `services/assistant.py`, vector search over `chunk.embedding`). When the branches were merged, this AI layer replaced it; one AI pipeline remains (`/api/v1/ai/*`, one `herbaguard ai` command group). What it covered is kept or ported:
+
+- **Kept from the 2026-11-06 reconciliation:** emergency screening, the dosing decline with quoted posology, and one controlled regeneration with the validation problems fed back (`llm_max_regenerations`, default 1).
+- **Ported at the merge:** the narrower dosing patterns (an amount must be asked about, so "Can I take ginseng with my blood pressure tablets?" is an evidence question); the fabricated-reference check (a PMID, DOI or URL not present in the context removes the paragraph, `unsupported_reference`); the safety phrasings "no danger …" and "there is no interaction"; and the original screening, reference and safety test cases (`tests/ai/test_ported_assistant_rules.py`).
+- **Already covered:** evidence pinning (decisive statements always enter the context), prompt-injection rule for passages, deterministic classes, ambiguity handling (409 with candidates), several herbs per question, citation checks against context ids.
+- **Not carried over:** the Ollama-only client and extractive quote composer (replaced by the provider layer and the `extractive` provider); vector search over `chunk.embedding` (removed by migration 0005, ADR-021); the separate full-text ranking for official sources; the sentence-level citation share; the `herbaguard ai embed/ask/eval` commands and their 17-question evaluation file. Decisions: ADR-025 and ADR-026.
 

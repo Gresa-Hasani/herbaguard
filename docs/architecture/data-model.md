@@ -75,7 +75,7 @@ The schema follows four rules from the Phase 0 research (`docs/research/scientif
 | `indication` | Therapeutic indication of a substance with its **EMA use category** (`well_established_use` / `traditional_use`), never merged. Optional MeSH ID. | CHECK on `use_category` |
 | `interaction_assertion` | One statement from one source that a substance interacts with a drug **or** a drug class. Keeps the source's own wording (`object_label_verbatim`, `severity_wording`), section, use category, mechanism and conditions (e.g. hyperforin dose threshold). `status` = active / superseded / rejected. | CHECK exactly one of `drug_id` / `drug_class_code`; CHECK on `evidence_type`, `use_category`, `status` |
 | `interaction_assertion_evidence` | Assertion ↔ evidence items. | Composite PK |
-| `chunk` | Retrieval unit for the assistant: text, metadata, `embedding vector(384)` (HNSW cosine index) and a generated `tsvector` column (GIN index) for hybrid search. | UNIQUE (`evidence_item_id`, `ordinal`) |
+| `chunk` | Retrieval unit for the assistant: text, metadata, `embedding vector(384)` (HNSW cosine index; removed in migration 0005, see §9) and a generated `tsvector` column (GIN index) for hybrid search. | UNIQUE (`evidence_item_id`, `ordinal`) |
 
 ## 3. What is computed, not stored
 
@@ -90,7 +90,7 @@ The schema follows four rules from the Phase 0 research (`docs/research/scientif
 - Timestamps: `timestamptz`, `created_at` / `updated_at` set by the database.
 - Vocabularies: `text` columns + CHECK constraints (simpler to evolve than native ENUM types). The allowed values live in `herbaguard/domain/enums.py`.
 - Constraint names follow a deterministic convention (`pk_`, `fk_`, `uq_`, `ck_`, `ix_`) that stays within PostgreSQL's 63-character limit; a test enforces this.
-- Embedding dimension 384 matches the embedding model planned for Phase 5 (`bge-small-en-v1.5`). Choosing a model with another dimension requires a migration.
+- Schema v1 reserved a 384-dimension `chunk.embedding` column. Migration 0005 replaced it with model-independent `segment_embedding` vectors (§9, ADR-021), so changing the embedding model needs no migration.
 - `alembic check` in CI verifies that models and migrations agree.
 
 ## 5. Known limitations of schema v1

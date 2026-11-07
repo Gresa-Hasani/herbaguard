@@ -106,7 +106,8 @@ _CLASS = re.compile(r"\bclass(?:es)?\s*[:(]?\s*['\"]?([A-E])\b(?![-–])", re.I)
 _SAFE = re.compile(
     r"\b(is|are|be|considered|generally|completely|totally|perfectly|likely|possibly|probably|usually)"
     r"\s+(safe|harmless)\b|"
-    r"\bsafe to (take|use|combine|consume)\b|\b(no|without) (any )?risk\b|\brisk-free\b|"
+    r"\bsafe to (take|use|combine|consume)\b|\b(no|without) (any )?(risk|danger)\b|\brisk-free\b|"
+    r"\bthere (is|are) no interactions?\b|"
     r"\bno (safety )?concerns?\b|"
     r"\b(can|could|may) (be )?safely\b|\bsafely (take|use|combine|consume|be (taken|used|combined))\b",
     re.I,
@@ -121,6 +122,13 @@ _DIRECTIVE = re.compile(
     r"reduce|change|switch|avoid|take|use|combine)\b|\b(i|we) (recommend|advise|suggest)\b|"
     r"^\s*(stop|start|discontinue|avoid|do not take|don't take) (taking|using|your)\b",
     re.I,
+)
+# References the model may invent. Each must occur in the context (item text, URL, external id or
+# title); otherwise the paragraph is removed. Ported from the earlier Evidence Assistant on main.
+_REFERENCES = (
+    ("PMID", re.compile(r"\bPMID:?\s*(\d{5,9})\b", re.I)),
+    ("DOI", re.compile(r"\b(10\.\d{4,9}/[^\s\]\)]+)", re.I)),
+    ("URL", re.compile(r"(https?://[^\s\]\)]+)", re.I)),
 )
 _DOSE = re.compile(r"\b\d+(?:[.,]\d+)?\s?(mg|g|mcg|µg|ug|ml|iu|units?)\b", re.I)
 _TARGET = re.compile(
@@ -396,7 +404,8 @@ def strength_issue(paragraph: str, evidence: str) -> str | None:
 # never an independent HerbaGuard assessment, never about a particular person, never about a
 # combination with a medicine, and never an absence-of-risk claim.
 _ALWAYS_CRITICAL = re.compile(
-    r"\b(?:no|without) (?:any )?risk\b|\brisk-free\b|\bno (?:safety )?concerns?\b|"
+    r"\b(?:no|without) (?:any )?(?:risk|danger)\b|\brisk-free\b|\bno (?:safety )?concerns?\b|"
+    r"\bthere (?:is|are) no interactions?\b|"
     r"\bsafe to (?:take|use|combine|consume)\b",
     re.I,
 )
@@ -539,6 +548,11 @@ def validate(
              for m in [re.search(r"Pair: (.+?) \+ (.+)", i.text)] if m]  # fmt: skip
     herb_terms = set().union(*(_terms(m.group(1)) for m in pairs))
     drug_terms = set().union(*(_terms(m.group(2)) for m in pairs))
+    reference_text = " ".join(
+        part
+        for i in context.items
+        for part in (i.text, i.url or "", i.external_id or "", i.title or "")
+    ).lower()
     for index, para in enumerate(paragraphs):
         valid = tuple(dict.fromkeys(c for c in para.citations if c in items))
         for bad in sorted(set(para.citations) - set(valid)):
@@ -602,6 +616,13 @@ def validate(
         if unsupported_numbers:
             result.issues.append(Issue("unsupported_number", "removed",
                 f"States {', '.join(unsupported_numbers)}, which the cited items do not contain.", index))  # fmt: skip
+            continue
+        invented = [f"{kind} {value.rstrip('.,;')}" for kind, pattern in _REFERENCES
+                    for value in pattern.findall(para.text)
+                    if value.lower().rstrip(".,;") not in reference_text]  # fmt: skip
+        if invented:
+            result.issues.append(Issue("unsupported_reference", "removed",
+                f"Cites {', '.join(invented)}, which no item in the context contains.", index))  # fmt: skip
             continue
         hedged = [
             items[c]

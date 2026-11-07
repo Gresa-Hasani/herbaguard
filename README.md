@@ -26,7 +26,7 @@ HerbaGuard combines herb-side regulatory monographs (EMA HMPC), drug-side labels
 | 7 | Integration and validation | Not started |
 | 8 | Submission | Not started |
 
-**Implemented now:** project structure; database schema with provenance tables (migrations 0001–0005); FastAPI service (health, readiness, metadata, standard error format, request IDs, structured logging); React application shell with the persistent disclaimer; Docker Compose stack; tests and CI; and a **data pipeline** that ingests the 16 curated herbs from WFO/WCVP/NCBI/GBIF/Wikidata, EMA herbal monographs, NCCIH fact sheets, openFDA drug labels, RxNorm/ATC and PubMed with full provenance and validation. The **REST API** (Phase 3) serves plants, drugs, evidence, sources/coverage and a deterministic herb–drug **interaction check (classes A–E)** with full provenance — see [`docs/api/`](docs/api/). **Phase 4** adds the mechanism layer: 18 enzymes/transporters, drug roles from FDA's CYP/transporter table, herb effects from EU monographs, graph and path endpoints, and conservative mechanism-based class B. **Phase 5** adds an evidence-grounded AI layer: hybrid retrieval (PostgreSQL full-text + pgvector, RRF) over a model-independent index, a provider-independent LLM interface (local Ollama/Qwen3-4B by default; Anthropic/OpenAI optional), cited answers validated in code, and the deterministic A–E class always taken from the interaction service — see [`docs/ai/`](docs/ai/). The web app does not use the API yet (Phase 6).
+**Implemented now:** project structure; database schema with provenance tables (migrations 0001–0006); FastAPI service (health, readiness, metadata, standard error format, request IDs, structured logging); React application shell with the persistent disclaimer; Docker Compose stack; tests and CI; and a **data pipeline** that ingests the 16 curated herbs from WFO/WCVP/NCBI/GBIF/Wikidata, EMA herbal monographs, NCCIH fact sheets, openFDA drug labels, RxNorm/ATC and PubMed with full provenance and validation. The **REST API** (Phase 3) serves plants, drugs, evidence, sources/coverage and a deterministic herb–drug **interaction check (classes A–E)** with full provenance — see [`docs/api/`](docs/api/). **Phase 4** adds the mechanism layer: 18 enzymes/transporters, drug roles from FDA's CYP/transporter table, herb effects from EU monographs, graph and path endpoints, and conservative mechanism-based class B. **Phase 5** adds an evidence-grounded AI layer: hybrid retrieval (PostgreSQL full-text + pgvector, RRF) over a model-independent index, a provider-independent LLM interface (local Ollama/Qwen3-4B by default; Anthropic/OpenAI optional), cited answers validated in code, and the deterministic A–E class always taken from the interaction service — see [`docs/ai/`](docs/ai/). The web app does not use the API yet (Phase 6).
 
 ## Quick start (Docker)
 
@@ -56,6 +56,7 @@ herbaguard ingest all      # ~6 minutes; fetches live data (incl. Phase 4 mechan
 herbaguard validate        # post-ingestion checks
 herbaguard report          # counts and data-quality issues
 ```
+
 
 Details: [`docs/data/pipeline.md`](docs/data/pipeline.md) · sources and licences: [`docs/data/sources.md`](docs/data/sources.md) · latest results: [`docs/data/ingestion-results.md`](docs/data/ingestion-results.md).
 
@@ -112,7 +113,7 @@ Database tests create and drop a separate `herbaguard_test` database; they are s
 ```
 backend/        FastAPI app, domain vocabulary, ORM models, Alembic migrations, ingestion CLI, tests
 frontend/       React + TypeScript (Vite) single-page app, tests, nginx config
-data/curated/   Curated herb list and interaction lexicon (committed)
+data/curated/   Curated herb list, interaction lexicon, mechanism sources and targets (committed)
 data/raw/       Raw source snapshots — git-ignored (licences may forbid redistribution)
 docs/research/  Phase 0: requirements, dataset and API audits, scientific framework, MVP scope
 docs/architecture/  System overview, data model, API conventions, decision records

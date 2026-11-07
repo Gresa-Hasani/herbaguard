@@ -2,14 +2,17 @@
 
 HerbaGuard explains what sources say. It never handles emergencies and never gives individual
 dosing advice; both are recognised by fixed patterns (no model), so the behaviour is predictable
-and testable. Patterns adapted from the parallel Phase 5 implementation on ``main`` (commit
-e491d02, ``ai/guardrails.py``) and kept compatible with this architecture.
+and testable. The patterns come from the earlier Evidence Assistant on ``main`` (commits e491d02
+and 3861b91, ``ai/guardrails.py``), including its narrower dosing patterns, and are kept
+compatible with this architecture.
 
 * ``EMERGENCY`` — overdose, poisoning, acute severe symptoms, self-harm: no retrieval, no
   generation, a referral message only.
-* ``DOSING`` — "how much should I take", "what dose": no generated text; the official posology
-  passages (e.g. EU monograph section 4.2) are quoted verbatim with a statement that they are not
-  a recommendation for the reader.
+* ``DOSING`` — "how much should I take", "what dose", "can I take 600 mg": no generated text; the
+  official posology passages (e.g. EU monograph section 4.2) are quoted verbatim with a statement
+  that they are not a recommendation for the reader. A question about combining a herb with a
+  medicine ("Can I take ginseng with my blood pressure tablets?") is an evidence question, not a
+  dosing question.
 * ``EVIDENCE`` — everything else.
 
 Symptoms count as an emergency only when someone is having them now ("I have chest pain"), so
@@ -25,10 +28,10 @@ from enum import StrEnum
 
 
 class QuestionKind(StrEnum):
-    EVIDENCE = "evidence"
-    DOSING = "dosing"
-    EMERGENCY = "emergency"
-    EMPTY = "empty"
+    EVIDENCE = "evidence"  # normal question about what sources say
+    DOSING = "dosing"  # "how much / how many / what dose should I take"
+    EMERGENCY = "emergency"  # overdose, poisoning, severe acute symptoms
+    EMPTY = "empty"  # nothing left after normalisation
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,7 +71,10 @@ _DOSING = [
     r"\bhow (?:much|many)\b.*\b(?:take|use|give|drink|have|dose|capsules?|tablets?|mg|grams?|cups?|drops?)\b",
     r"\bwhat (?:is the |'?s the )?(?:right |correct |safe |recommended |best |maximum |max )?(?:dose|dosage|amount)\b",
     r"\b(?:dose|dosage|posology)\b.*\b(?:should|for me|can i|do i|my)\b",
-    r"\b(?:should|can|may) i (?:take|use|give|double|increase|decrease|reduce)\b.*\b(?:mg|grams?|capsules?|tablets?|doses?|times a day|daily)\b",
+    # An amount must be asked about: "can I take 600 mg", "should I take two capsules".
+    # "Can I take ginseng with my blood pressure tablets?" is an interaction question.
+    r"\b(?:should|can|may|could) i (?:take|use|give|have)\s+(?:\d+|one|two|three|four|five|more|less|extra|another|a second|a higher|a lower|a bigger|a double)\b",
+    r"\b(?:double|increase|decrease|reduce|lower|raise) (?:my|the|his|her) (?:dose|dosage|amount)\b",
     r"\bhow (?:often|long) should i (?:take|use)\b",
     r"\bmaximum (?:daily )?(?:dose|amount)\b",
 ]
@@ -100,8 +106,8 @@ def screen(question: str) -> Screening:
         return Screening(QuestionKind.EMPTY, "The question contains no words.")
     for pattern in _EMERGENCY_RE:
         if pattern.search(text):
-            return Screening(QuestionKind.EMERGENCY, "emergency wording")
+            return Screening(QuestionKind.EMERGENCY, f"emergency pattern: {pattern.pattern}")
     for pattern in _DOSING_RE:
         if pattern.search(text):
-            return Screening(QuestionKind.DOSING, "dosing wording")
+            return Screening(QuestionKind.DOSING, f"dosing pattern: {pattern.pattern}")
     return Screening(QuestionKind.EVIDENCE)
