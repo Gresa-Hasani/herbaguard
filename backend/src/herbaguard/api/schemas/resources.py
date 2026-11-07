@@ -278,6 +278,43 @@ class SourceOut(BaseModel):
     last_run_status: str | None
     last_run_finished_at: datetime | None
     records: int
+    # Licence and retrieval metadata exactly as recorded; ``None`` means "not recorded", which
+    # clients must show as unknown, never as permission.
+    licence_url: str | None = None
+    attribution: str | None = None
+    access_method: str | None = None
+    latest_retrieved_at: datetime | None = Field(
+        default=None,
+        description="When the most recent stored artefact of this source was retrieved",
+    )
+    latest_source_version: str | None = Field(
+        default=None, description="Source version of the most recently retrieved artefact, if any"
+    )
+
+
+class ProductLabelIngredient(BaseModel):
+    ingredient: str
+    amount_per_serving: str | None
+    unit: str | None
+    category: str | None
+
+
+class ProductLabelOut(BaseModel):
+    """One stored NIH DSLD label. Manufacturer information, never clinical evidence."""
+
+    dsld_id: str
+    product_name: str | None
+    brand: str | None
+    market_status: str | None
+    upc: str | None
+    label_url: str | None
+    ingredients: list[ProductLabelIngredient]
+    precautions: list[str]
+    label_statement_count: int
+    source_code: Literal["nih_dsld"] = "nih_dsld"
+    licence_status: str
+    redistributable: Literal[False] = False
+    provenance: list[ProvenanceOut]
 
 
 class CoverageRow(BaseModel):
@@ -291,3 +328,33 @@ class CoverageRow(BaseModel):
     active_statements: dict[str, int]
     pubmed_by_type: dict[str, int]
     type_note: str = EvidenceTypeInfo.model_fields["note"].default
+
+
+class TaxonCoverage(BaseModel):
+    """What is stored for one accepted taxon, by kind of material.
+
+    The four groups are never merged: a taxonomic record is not evidence, and manufacturer
+    product labels (``dsld_products``) are not clinical evidence.
+    """
+
+    wfo_id: str
+    scientific_name: str
+    family: str | None
+    taxonomic_status: str
+    # Regulatory and government material
+    monograph_documents: int = Field(description="EMA HMPC monograph documents with extraction")
+    fact_sheet_items: int = Field(description="NCCIH fact-sheet evidence items")
+    drug_label_mentions: int = Field(description="openFDA drug-label items naming the herb")
+    # Indexed scientific literature (PubMed records, by search purpose)
+    literature_clinical_items: int
+    literature_interaction_items: int
+    # Manufacturer product labels (NIH DSLD): not clinical evidence
+    dsld_products: int = Field(description="DSLD products listing a resolved ingredient")
+    # Supplementary research sources with a taxon mapping: source code -> resolved | candidate
+    supplementary_sources: dict[str, str]
+    active_interaction_statements: int
+
+
+class PlantCoverage(BaseModel):
+    total: int = Field(description="Number of taxa in the plant index")
+    items: list[TaxonCoverage]

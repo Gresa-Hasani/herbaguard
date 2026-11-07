@@ -29,6 +29,7 @@ export class ApiError extends Error {
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
+const DEFAULT_TIMEOUT_MS = 30_000
 
 function isErrorEnvelope(value: unknown): value is { error: ApiErrorBody } {
   if (typeof value !== 'object' || value === null || !('error' in value)) return false
@@ -41,18 +42,48 @@ function isErrorEnvelope(value: unknown): value is { error: ApiErrorBody } {
   )
 }
 
-export async function apiGet<T>(path: string, init?: RequestInit): Promise<T> {
+interface RequestOptions extends RequestInit {
+  timeoutMs?: number
+}
+
+async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, signal: externalSignal, ...init } = options
+  const controller = new AbortController()
+  let timedOut = false
+  const timer = setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, timeoutMs)
+  const forwardAbort = () => controller.abort()
+  if (externalSignal) {
+    if (externalSignal.aborted) controller.abort()
+    else externalSignal.addEventListener('abort', forwardAbort)
+  }
+
   let response: Response
   try {
     response = await fetch(`${API_BASE}${path}`, {
       ...init,
-      headers: { Accept: 'application/json', ...init?.headers },
+      signal: controller.signal,
+      headers: { Accept: 'application/json', ...init.headers },
     })
   } catch {
+    if (timedOut) {
+      throw new ApiError(0, {
+        code: 'timeout',
+        message: 'The request took too long. Please try again.',
+      })
+    }
+    if (controller.signal.aborted) {
+      throw new ApiError(0, { code: 'cancelled', message: 'The request was cancelled.' })
+    }
     throw new ApiError(0, {
       code: 'network_error',
       message: 'The HerbaGuard service could not be reached.',
     })
+  } finally {
+    clearTimeout(timer)
+    externalSignal?.removeEventListener('abort', forwardAbort)
   }
 
   const payload: unknown = await response.json().catch(() => null)
@@ -64,4 +95,17 @@ export async function apiGet<T>(path: string, init?: RequestInit): Promise<T> {
     })
   }
   return payload as T
+}
+
+export function apiGet<T>(path: string, options?: RequestOptions): Promise<T> {
+  return request<T>(path, { ...options, method: 'GET' })
+}
+
+export function apiPost<T>(path: string, body: unknown, options?: RequestOptions): Promise<T> {
+  return request<T>(path, {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(body),
+  })
 }

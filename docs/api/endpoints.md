@@ -11,6 +11,7 @@ All list endpoints return `{items, total, limit, offset}` with `limit` 1–100 (
 | `GET /api/v1/plants` | Search taxa by any name type | `q` (1–200 chars), `limit`, `offset` | Ranks exact > prefix > substring, accepted > pharmaceutical > common > synonym; returns `matched_name` |
 | `GET /api/v1/plants/resolve` | Resolve a name to one curated herb | `name` | `status`: resolved / ambiguous (with candidates) / not_found; notes for common-name, synonym and partial matches |
 | `GET /api/v1/plants/{wfo_id}` | Plant detail | `wfo_id` = `wfo-NNNNNNNNNN` | Identifiers (WFO, IPNI, WCVP, GBIF, NCBI, POWO, Wikidata), names, native range, indications (WEU/TU separate, with provenance), monograph completeness and "None reported" sections, counts, taxon provenance |
+| `GET /api/v1/plants/{wfo_id}/product-labels` | Stored NIH DSLD product labels for the web UI | `limit`, `offset` | Only labels whose matched ingredient maps to this plant with `resolved` status. Returns manufacturer label facts with provenance, `licence_status` and `redistributable: false`. Product information only: never clinical evidence, an interaction class or a HerbaGuard finding |
 | `GET /api/v1/plants/{wfo_id}/interactions` | All active statements for the plant, grouped by drug or ATC class | `statement_type` (repeatable), `source` | Each statement with excerpt, conditions, severity wording, subject check, evidence and provenance |
 
 ## Drugs
@@ -75,7 +76,8 @@ The interaction check (`POST /api/v1/interactions/check`) returns `mechanism_pat
 
 | Method & path | Purpose |
 |---|---|
-| `GET /api/v1/sources` | Registered sources: provider, licence, licence verification status, redistributable, last run status/time, number of raw records |
+| `GET /api/v1/sources` | Registered sources: provider, licence, licence verification status, redistributable, last run status/time, number of raw records, and the recorded `licence_url`, `attribution`, `access_method`, `latest_retrieved_at` and `latest_source_version`. A `null` means "not recorded"; clients must show it as unknown, never as permission. `latest_source_version` is the version of the most recently retrieved item (for example an EMA document number), not necessarily a version of the whole source |
+| `GET /api/v1/coverage/plants` | Per taxon in the plant index (all of them, one row each): accepted taxonomic record, regulatory material (EMA monograph documents, NCCIH fact-sheet items, openFDA drug-label mentions), indexed PubMed literature (clinical and interaction searches), NIH DSLD product count, supplementary-source mappings (`ddid`, `supp_ai`, `livertox`: `resolved` or `candidate`) and active interaction statements. The groups are never merged: a taxonomic record is not evidence and a product label is not clinical evidence |
 | `GET /api/v1/coverage` | Per curated herb: species count, monograph and date, fact sheet, openFDA label coverage, evidence counts by relation, active statement counts by type, PubMed records by type (with the type-is-not-quality note) |
 
 ## Health and metadata (Phase 1)

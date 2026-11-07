@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { ApiError, apiGet } from '../lib/api'
 import { mockFetch } from './render'
@@ -31,6 +31,19 @@ describe('apiGet', () => {
       requestId: 'abc',
       message: "Several taxa match 'ginseng'.",
     })
+  })
+
+  it('reports a request timeout distinctly and keeps the exit path clean', async () => {
+    vi.useFakeTimers()
+    try {
+      mockFetch({ '/api/v1/slow': 'hang' })
+      const request = apiGet('/api/v1/slow', { timeoutMs: 25 })
+      const assertion = expect(request).rejects.toMatchObject({ status: 0, code: 'timeout' })
+      await vi.advanceTimersByTimeAsync(50)
+      await assertion
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('reports non-envelope errors and network failures distinctly', async () => {

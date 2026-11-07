@@ -125,6 +125,56 @@ def test_sources_and_coverage(api: TestClient) -> None:
     assert "not a quality rating" in sjw["type_note"]
 
 
+def test_sources_expose_recorded_licence_metadata_without_inventing_any(api: TestClient) -> None:
+    sources = {s["code"]: s for s in api.get("/api/v1/sources").json()}
+    ema = sources["ema_hmpc"]
+    for field in (
+        "licence_url",
+        "attribution",
+        "access_method",
+        "latest_retrieved_at",
+        "latest_source_version",
+    ):
+        assert field in ema
+    # Unrecorded metadata stays null (clients show it as "not recorded", never as permission).
+    assert all(s["licence_url"] is None for s in sources.values())
+    assert all(s["attribution"] is None for s in sources.values())
+
+
+def test_plant_coverage_covers_every_taxon_and_matches_plant_detail(api: TestClient) -> None:
+    index = api.get("/api/v1/plants", params={"limit": 100}).json()
+    coverage = api.get("/api/v1/coverage/plants").json()
+    assert coverage["total"] == index["total"] == len(coverage["items"])
+    assert {row["wfo_id"] for row in coverage["items"]} == {t["wfo_id"] for t in index["items"]}
+
+    for row in coverage["items"]:
+        assert row["taxonomic_status"] == "accepted"
+        detail = api.get(f"/api/v1/plants/{row['wfo_id']}").json()
+        counts = detail["counts"]
+        assert row["literature_clinical_items"] == counts.get("evidence_literature_clinical", 0)
+        assert row["literature_interaction_items"] == counts.get(
+            "evidence_literature_interaction", 0
+        )
+        assert row["fact_sheet_items"] == counts.get("evidence_fact_sheet", 0)
+        assert row["drug_label_mentions"] == counts.get("evidence_label_mention", 0)
+        assert row["monograph_documents"] == len(detail["monographs"])
+        assert row["active_interaction_statements"] == counts["active_interaction_statements"]
+
+
+def test_plant_coverage_keeps_product_labels_and_supplementary_sources_apart(
+    api: TestClient,
+) -> None:
+    row = next(
+        r
+        for r in api.get("/api/v1/coverage/plants").json()["items"]
+        if r["wfo_id"] == "wfo-0000728093"
+    )
+    # Product labels are a separate count; supplementary mappings carry only resolved/candidate.
+    assert isinstance(row["dsld_products"], int)
+    assert set(row["supplementary_sources"].values()) <= {"resolved", "candidate"}
+    assert set(row["supplementary_sources"]) <= {"ddid", "supp_ai", "livertox"}
+
+
 def test_openapi_documents_every_endpoint(api: TestClient) -> None:
     paths = api.get("/api/openapi.json").json()["paths"]
     for path in (
@@ -133,6 +183,7 @@ def test_openapi_documents_every_endpoint(api: TestClient) -> None:
         "/api/v1/interactions/check",
         "/api/v1/evidence",
         "/api/v1/coverage",
+        "/api/v1/coverage/plants",
     ):
         assert path in paths
     assert "409" in paths["/api/v1/interactions/check"]["post"]["responses"]

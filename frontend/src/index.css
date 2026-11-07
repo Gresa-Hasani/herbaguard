@@ -1,40 +1,351 @@
 @import 'tailwindcss';
 
 /*
- * Design tokens. Evidence classes get distinct, colour-blind-safe hues and are never
- * communicated by colour alone (labels always accompany them). There is deliberately no
- * "safe" green for interaction results.
+ * HerbaGuard design system.
+ *
+ * Palette: deep forest (brand), sage (quiet surfaces), ivory (page), charcoal-green (text),
+ * muted teal (interactive), terracotta "clay" (warnings and manufacturer information).
+ * There is no yellow, mustard or amber anywhere. Interaction classes and evidence categories have
+ * their own hues and are never communicated by colour alone (a letter or label always
+ * accompanies them). There is deliberately no "safe" green for interaction results.
  */
 @theme {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia,
+    ui-serif, serif;
 
-  --color-brand-50: #eef6f2;
-  --color-brand-100: #d6eadf;
-  --color-brand-600: #2b7a5f;
-  --color-brand-700: #1f5f4a;
-  --color-brand-900: #123a2d;
+  /* Forest (brand). `brand-*` is the same scale under the name the components already use. */
+  --color-forest-950: #06201a;
+  --color-forest-900: #0b2f25;
+  --color-forest-800: #11402f;
+  --color-forest-700: #17533f;
+  --color-forest-600: #1f6b52;
+  --color-forest-500: #2d8567;
+  --color-forest-400: #55a287;
+  --color-forest-300: #8cc2ad;
+  --color-forest-200: #bcdccf;
+  --color-forest-100: #dcede5;
+  --color-forest-50: #eff7f3;
+  --color-brand-50: #eff7f3;
+  --color-brand-100: #dcede5;
+  --color-brand-200: #bcdccf;
+  --color-brand-300: #8cc2ad;
+  --color-brand-500: #2d8567;
+  --color-brand-600: #1f6b52;
+  --color-brand-700: #17533f;
+  --color-brand-800: #11402f;
+  --color-brand-900: #0b2f25;
+  --color-brand-950: #06201a;
 
-  --color-ink: #1c2321;
-  --color-muted: #5b6763;
-  --color-surface: #ffffff;
-  --color-canvas: #f6f8f7;
-  --color-line: #dfe5e2;
+  /* Sage (supporting backgrounds) */
+  --color-sage-50: #f3f6f1;
+  --color-sage-100: #e8eee6;
+  --color-sage-200: #d6e0d4;
+  --color-sage-300: #bccbba;
 
-  --color-class-a: #b42318; /* documented */
-  --color-class-b: #b54708; /* potential */
-  --color-class-c: #7a5af8; /* suspected */
-  --color-class-d: #475467; /* no evidence found */
-  --color-class-e: #667085; /* insufficient information */
+  /* Backgrounds and surface levels */
+  --color-canvas: #f7f6f1; /* page: warm ivory */
+  --color-ivory: #f7f6f1;
+  --color-surface: #ffffff; /* level 1: cards */
+  --color-surface-2: #f3f6f1; /* level 2: recessed / sage tint */
+  --color-surface-3: #e8eee6; /* level 3: emphasis wells */
+
+  /* Text */
+  --color-ink: #12201b;
+  --color-ink-soft: #2f3f38;
+  --color-muted: #55655e;
+
+  /* Borders */
+  --color-line: #dcdfd5;
+  --color-line-strong: #c3cabb;
+
+  /* Interactive (muted teal) */
+  --color-teal-50: #e8f4f3;
+  --color-teal-100: #cde7e6;
+  --color-teal-500: #1f8a89;
+  --color-teal-600: #17797a;
+  --color-teal-700: #126061;
+  --color-interactive: #17797a;
+  --color-interactive-soft: #e8f4f3;
+
+  /* Clay / terracotta (warnings, manufacturer information) */
+  --color-clay-50: #fbf0ea;
+  --color-clay-100: #f5ddd0;
+  --color-clay-300: #e0a98e;
+  --color-clay-600: #b4532a;
+  --color-clay-700: #94421f;
+  --color-clay-800: #6f3217;
+  --color-warn: #94421f;
+  --color-warn-soft: #fbf0ea;
+
+  /* Status */
+  --color-success: #1f6b52;
+  --color-danger: #a8302a;
+  --color-danger-soft: #fbeceb;
+
+  /* Evidence categories */
+  --color-ev-regulatory: #126061;
+  --color-ev-clinical: #34559c;
+  --color-ev-supplementary: #6a5aa8;
+  --color-ev-manufacturer: #94421f;
+
+  /* Interaction classes (labels always accompany these) */
+  --color-class-a: #a8302a; /* documented */
+  --color-class-b: #bd5a2b; /* potential */
+  --color-class-c: #6a5aa8; /* suspected / unclear */
+  --color-class-d: #44667a; /* no interaction evidence found */
+  --color-class-e: #6c7772; /* insufficient information */
+
+  --shadow-soft: 0 1px 2px rgb(18 32 27 / 0.05), 0 6px 20px -8px rgb(18 32 27 / 0.12);
+  --shadow-lift: 0 2px 4px rgb(18 32 27 / 0.06), 0 18px 40px -16px rgb(18 32 27 / 0.28);
+  --shadow-glow: 0 0 0 1px rgb(255 255 255 / 0.06), 0 30px 80px -30px rgb(6 32 26 / 0.7);
 }
 
 @layer base {
   html {
     background-color: var(--color-canvas);
     color: var(--color-ink);
+    scroll-behavior: smooth;
+  }
+
+  body {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  button:not(:disabled),
+  summary,
+  [role='button'] {
+    cursor: pointer;
   }
 
   :focus-visible {
-    outline: 3px solid var(--color-brand-600);
+    outline: 3px solid var(--color-teal-500);
     outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  ::selection {
+    background-color: var(--color-forest-200);
+    color: var(--color-forest-950);
+  }
+
+  summary {
+    list-style: none;
+  }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+
+  input[type='search']::-webkit-search-cancel-button {
+    appearance: none;
+  }
+}
+
+/* ------------------------------------------------------------------ motion */
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes leaf-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes float-y {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes sway {
+  0%,
+  100% {
+    transform: rotate(-1.2deg);
+  }
+  50% {
+    transform: rotate(1.2deg);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes ring {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-page {
+  animation: page-in 0.38s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.animate-pop {
+  animation: pop 0.22s ease-out both;
+}
+
+.draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw 2.2s cubic-bezier(0.5, 0, 0.2, 1) 0.2s forwards;
+}
+
+.leaf-in {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: 0% 50%;
+  animation: leaf-in 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.float-y {
+  animation: float-y 7s ease-in-out infinite;
+}
+
+.sway {
+  transform-origin: 50% 100%;
+  animation: sway 9s ease-in-out infinite;
+}
+
+.shimmer {
+  background-image: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgb(255 255 255 / 0.55) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s linear infinite;
+}
+
+.pulse-ring {
+  animation: ring 2.4s ease-out infinite;
+}
+
+/* Section entrance: hidden only after the hook confirms IntersectionObserver is available, so
+   content is never invisible without JavaScript or in test environments. */
+[data-reveal='pending'] {
+  opacity: 0;
+  transform: translateY(18px);
+}
+[data-reveal='shown'] {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 0.7s cubic-bezier(0.2, 0.7, 0.2, 1),
+    transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+/* ----------------------------------------------------------------- patterns */
+
+.bg-dots {
+  background-image: radial-gradient(rgb(255 255 255 / 0.1) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+.bg-dots-dark {
+  background-image: radial-gradient(rgb(18 32 27 / 0.08) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+/* Hatched manufacturer-information surface: visibly not the same kind of thing as evidence. */
+.bg-hatch {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgb(148 66 31 / 0.06) 0,
+    rgb(148 66 31 / 0.06) 6px,
+    transparent 6px,
+    transparent 12px
+  );
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+  }
+
+  .draw {
+    stroke-dashoffset: 0;
+  }
+
+  [data-reveal='pending'] {
+    opacity: 1;
+    transform: none;
   }
 }

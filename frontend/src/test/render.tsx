@@ -18,15 +18,58 @@ export function renderWithProviders(ui: ReactElement, { route = '/' } = {}) {
   )
 }
 
-/** Mock global fetch with a map of path → [status, body]. Unknown paths reject. */
-export function mockFetch(routes: Record<string, [number, unknown]>) {
-  return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-    const path = new URL(url, 'http://localhost').pathname
-    const route = routes[path]
-    if (!route) throw new TypeError(`Network error for ${path}`)
-    const [status, body] = route
-    return new Response(JSON.stringify(body), {
+export interface MockRequest {
+  url: URL
+  method: string
+  body: unknown
+  signal: AbortSignal | null
+}
+
+export type MockRoute =
+  | [number, unknown]
+  | 'hang'
+  | ((request: MockRequest) => [number, unknown] | Promise<[number, unknown]>)
+
+/**
+ * Mock global fetch with a map. Keys may be a full path with query or just the pathname.
+ * The first match wins, checking "METHOD full-path" and "full-path" before bare paths.
+ */
+export function mockFetch(routes: Record<string, MockRoute>) {
+  return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+    const raw = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    const url = new URL(raw, 'http://localhost')
+    const method = (init?.method ?? 'GET').toUpperCase()
+    const signal = init?.signal ?? null
+    let body: unknown = null
+    if (typeof init?.body === 'string') {
+      try {
+        body = JSON.parse(init.body)
+      } catch {
+        body = init.body
+      }
+    }
+
+    const keys = [
+      `${method} ${url.pathname}${url.search}`,
+      `${method} ${url.pathname}`,
+      `${url.pathname}${url.search}`,
+      url.pathname,
+    ]
+    const key = keys.find((candidate) => candidate in routes)
+    const route = key ? routes[key] : undefined
+
+    if (route === undefined) throw new TypeError(`Network error for ${url.pathname}`)
+    if (route === 'hang') {
+      return new Promise<Response>((_resolve, reject) => {
+        const abort = () => reject(new DOMException('Aborted', 'AbortError'))
+        if (signal?.aborted) abort()
+        else signal?.addEventListener('abort', abort, { once: true })
+      })
+    }
+
+    const [status, payload] =
+      typeof route === 'function' ? await route({ url, method, body, signal }) : route
+    return new Response(JSON.stringify(payload), {
       status,
       headers: { 'Content-Type': 'application/json' },
     })

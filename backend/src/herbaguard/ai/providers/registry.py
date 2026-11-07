@@ -27,7 +27,7 @@ Builder = Callable[[Settings, httpx.BaseTransport | None], LLMProvider]
 _BUILDERS: dict[LLMProviderName, Builder] = {
     LLMProviderName.OLLAMA: lambda s, t: OllamaProvider(
         base_url=s.ollama_base_url, model=s.llm_model, timeout=s.llm_timeout_seconds,
-        num_ctx=s.ollama_num_ctx, transport=t,
+        num_ctx=s.ollama_num_ctx, keep_alive=s.ollama_keep_alive, transport=t,
     ),
     LLMProviderName.ANTHROPIC: lambda s, t: AnthropicProvider(
         api_key=s.anthropic_api_key, model=s.anthropic_model, base_url=s.anthropic_base_url,
