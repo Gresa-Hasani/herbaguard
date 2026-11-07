@@ -46,7 +46,7 @@ def test_model_answer_with_schema_and_versioned_prompts() -> None:
     assert request.system.startswith(load_prompt("system", 2).text[:40])
     assert 'id="S1"' in request.messages[0].content
     assert (outcome.status, outcome.mode, outcome.provider) == ("answered", "model", "mock")
-    assert outcome.prompts == ["system_v2", "interaction_v1"]
+    assert outcome.prompts == ["system_v4", "interaction_v1"]
 
 
 def test_provider_failure_without_fallback_raises() -> None:

@@ -19,7 +19,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from herbaguard.ai.embeddings import EmbeddingError, EmbeddingModelInfo, Kind
@@ -31,7 +31,14 @@ from herbaguard.api.routes.ai import get_embedding_provider, get_generation_chai
 from herbaguard.core.config import LLMProviderName, Settings, get_settings
 from herbaguard.ingestion.context import run_ingestion
 from herbaguard.ingestion.loaders import ensure_sources
-from herbaguard.models import Chunk, EvidenceItem, HerbalSubstance, HerbalSubstanceEvidence
+from herbaguard.models import (
+    Chunk,
+    EvidenceItem,
+    HerbalSubstance,
+    HerbalSubstanceEvidence,
+    Taxon,
+    TaxonName,
+)
 
 pytestmark = pytest.mark.db
 Reply = Callable[[GenerationRequest], str | ProviderError]
@@ -193,7 +200,7 @@ def test_answer_cites_stored_evidence_with_provenance(
         "provider": "ollama",
         "model": "qwen3:4b",
     }
-    assert body["generation"]["prompts"] == ["system_v2", "interaction_v1"]
+    assert body["generation"]["prompts"] == ["system_v4", "interaction_v1"]
     cited = {c["label"]: c for c in body["citations"]}
     statement = next(c for c in cited.values() if c["kind"] == "statement")
     item = db_session.get(EvidenceItem, uuid.UUID(statement["evidence_item_id"]))
@@ -473,6 +480,64 @@ def test_dosing_question_is_declined_without_model(ai: Callable[..., TestClient]
     assert body["classification"][0]["interaction_class"] == "A"  # deterministic class still shown
     assert provider_of(client).requests == []
     assert any("doctor or pharmacist" in limitation for limitation in body["limitations"])
+
+
+def _only_panax_named_ginseng(db_session: Session) -> None:
+    """Real-data situation: only Panax ginseng holds the name 'ginseng'; the reviewed override
+    (domain.name_overrides) still makes the bare name ambiguous."""
+    eleuthero = db_session.scalar(
+        select(Taxon.id).where(Taxon.scientific_name == "Eleutherococcus senticosus")
+    )
+    db_session.execute(
+        delete(TaxonName).where(
+            TaxonName.normalized_name == "ginseng", TaxonName.taxon_id == eleuthero
+        )
+    )
+    db_session.flush()
+
+
+@pytest.mark.parametrize("single_species", [False, True])
+def test_dosing_with_ambiguous_ginseng_is_declined_without_assuming_a_species(
+    ai: Callable[..., TestClient], db_session: Session, single_species: bool
+) -> None:
+    if single_species:
+        _only_panax_named_ginseng(db_session)
+    client = ai()
+    body = ask(client, "How much ginseng should I take?")
+    assert body["status"] == "declined_dosing"
+    assert body["paragraphs"][0]["text"].startswith(
+        "HerbaGuard does not give individual dosing advice"
+    )
+    # no species assumed: no posology passage, no classification, no retrieval, no model call
+    assert body["citations"] == [] and body["classification"] == [] and body["retrieval"] is None
+    assert "'ginseng' matches more than one herb" in body["limitations"][0]
+    assert any("doctor or pharmacist" in limitation for limitation in body["limitations"])
+    assert provider_of(client).requests == []
+
+
+@pytest.mark.parametrize("single_species", [False, True])
+def test_safety_question_with_ambiguous_ginseng_asks_which_species(
+    ai: Callable[..., TestClient], db_session: Session, single_species: bool
+) -> None:
+    if single_species:
+        _only_panax_named_ginseng(db_session)
+    client = ai()
+    error = ask(client, "Is ginseng safe with warfarin?", status=409)["error"]
+    candidates = {c["pharmaceutical_name"] for c in error["details"]["candidates"]}
+    assert "Ginseng radix" in candidates and (
+        single_species or "Eleutherococci radix" in candidates
+    )
+    assert provider_of(client).requests == []
+
+
+def test_dosing_with_a_specific_ginseng_name_is_declined(ai: Callable[..., TestClient]) -> None:
+    client = ai()
+    body = ask(client, "How much Panax ginseng should I take?")
+    assert body["status"] == "declined_dosing"
+    assert body["paragraphs"][0]["text"].startswith(
+        "HerbaGuard does not give individual dosing advice"
+    )
+    assert provider_of(client).requests == []
 
 
 def test_question_without_words_is_400(ai: Callable[..., TestClient]) -> None:

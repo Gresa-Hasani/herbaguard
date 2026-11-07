@@ -12,6 +12,14 @@ Item kinds and labels (labels are what the model may cite):
   marked as graph context, never as a direct source quotation.
 * ``E#`` — a retrieved excerpt (verbatim slice of stored source text).
 * ``F#`` — a catalogue fact (source registry, coverage, FDA role listing).
+* ``X#`` — an experimental record from an external research dataset (DDID).
+* ``H#`` — LiverTox hepatotoxicity evidence (NIDDK/NLM): the likelihood-of-liver-injury assessments
+  as published (master list and chapter, both kept when they differ) and verbatim chapter text.
+  About liver injury only; the LiverTox likelihood score is never an interaction class.
+* ``U#`` — a SUPP.AI supplementary interaction mention: one sentence selected automatically by the
+  SUPP.AI model from a paper, with the paper's PMID, study flags and HerbaGuard's negation flag.
+  Never a confirmed interaction and never part of the A–E classification. (``S#`` is taken by
+  source statements, hence ``U``.)
 
 Rules:
 
@@ -35,13 +43,24 @@ from herbaguard.api.schemas.provenance import EVIDENCE_TYPE_LABELS, ProvenanceOu
 from herbaguard.api.schemas.resources import DrugCheckResult, StatementOut
 from herbaguard.services.mappers import provenance_out
 
-Kind = Literal["classification", "statement", "mechanism", "excerpt", "fact", "observation"]
+Kind = Literal[
+    "classification",
+    "statement",
+    "mechanism",
+    "excerpt",
+    "fact",
+    "observation",
+    "hepatotoxicity",
+    "mention",
+]
 Role = Literal[
     "deterministic_classification",
     "direct_evidence",
     "graph_context",
     "catalogue",
     "experimental_evidence",
+    "hepatotoxicity_evidence",
+    "supplementary_mention",
 ]
 
 
@@ -255,6 +274,91 @@ def observation_item(
     )  # fmt: skip
 
 
+LIVERTOX_QUALIFIERS = (
+    "LiverTox (NIDDK/NLM) hepatotoxicity evidence: about liver injury only, not about interactions",
+    "the LiverTox likelihood score (A-E, X; [HD] = high doses) grades how likely the agent is to cause "
+    "clinically apparent liver injury; it is NOT a HerbaGuard interaction class",
+    "'unlikely cause of liver injury' does not mean safe; no LiverTox record does not mean safe",
+)
+
+
+def hepatotoxicity_item(
+    *, text: str, title: str | None, location: str, url: str | None, external_id: str | None,
+    provenance: list[ProvenanceOut], extra_qualifiers: Iterable[str] = (), priority: int,
+) -> ContextItem:  # fmt: skip
+    """LiverTox hepatotoxicity evidence for a herb whose LiverTox entry is mapped by a resolved
+    (exact, reviewed) name match. Text is verbatim or a deterministic statement of the published
+    assessments; the qualifiers say what it is and what it is not."""
+    return ContextItem(
+        label="", kind="hepatotoxicity", role="hepatotoxicity_evidence", text=text, source_code="livertox",
+        external_id=external_id, title=title, location=location, url=url,
+        qualifiers=[*LIVERTOX_QUALIFIERS, *extra_qualifiers], provenance=provenance, priority=priority,
+    )  # fmt: skip
+
+
+SUPP_AI_QUALIFIERS = (
+    "SUPP.AI machine-extracted supplementary interaction mention: the sentence was selected automatically "
+    "by a model; it is NOT a confirmed interaction and NOT a HerbaGuard classification",
+    "a mention alone never establishes an interaction, and no mention never shows that there is no "
+    "interaction; the HerbaGuard A-E class (C#) is authoritative",
+    "SUPP.AI licence not verified: local models only, never sent to cloud models",
+)
+# Study type (ai/mentions.study_type). Only "clinical" and "human" notes contain "human study".
+STUDY_TYPE_NOTE = {
+    "clinical": "study type: clinical study (SUPP.AI paper flags clinical_study and human_study): one paper, "
+                "human study, not a confirmed clinical interaction",
+    "human": "study type: human study, not flagged as a clinical study (SUPP.AI paper flag)",
+    "animal_and_human": "study type: paper flagged as both animal and human research; which part this sentence "
+                        "reports is not stated: do not present it as human clinical evidence",
+    "in_vitro": "study type: in-vitro or cell-based work (cells, hepatocytes, microsomes or similar are named), "
+                "whatever the SUPP.AI flags say: NOT patient or clinical evidence",
+    "animal_wording": "study type: animals are named in the paper title or sentence, whatever the SUPP.AI flags "
+                      "say: NOT patient or clinical evidence",
+    "conflicting": "study type: SUPP.AI flags conflict (clinical flag without a human flag; may be a veterinary "
+                   "or animal study): NOT patient or clinical evidence",
+    "animal": "study type: animal study (SUPP.AI paper flag): NOT human clinical evidence",
+    "unknown": "study type: not stated by SUPP.AI: NOT human clinical evidence",
+}  # fmt: skip
+HUMAN_STUDY_NOTES = frozenset({STUDY_TYPE_NOTE["clinical"], STUDY_TYPE_NOTE["human"]})
+NEGATION_NOTE = (
+    "negation applies to this herb-drug pair ({cue}): the sentence may report that no effect was found for "
+    "this pair; report it that way and never as evidence of an interaction, or as proof of no interaction"
+)
+WARNING_NOTE = (
+    "warning wording ({cue}): the source advises against the combination; this is neither a confirmed "
+    "interaction nor evidence that there is no interaction"
+)
+ELSEWHERE_NOTE = (
+    "the sentence contains negation wording ({cue}) that does not appear to apply to this herb-drug pair "
+    "(it concerns another substance or finding)"
+)
+
+
+def mention_item(
+    *, text: str, study_type: str, negation_cue: str | None, external_id: str | None, url: str | None,
+    title: str | None, location: str, provenance: list[ProvenanceOut], priority: int,
+    warning_cue: str | None = None, other_negation_cue: str | None = None,
+) -> ContextItem:  # fmt: skip
+    """A SUPP.AI interaction mention for a herb–drug pair whose herb and drug are both mapped by a
+    resolved name match. Supplementary context only; never a confirmed interaction."""
+    qualifiers = [*SUPP_AI_QUALIFIERS, STUDY_TYPE_NOTE.get(study_type, STUDY_TYPE_NOTE["unknown"])]
+    if negation_cue:
+        qualifiers.append(NEGATION_NOTE.format(cue=f"'{negation_cue}'"))
+    if warning_cue:
+        qualifiers.append(WARNING_NOTE.format(cue=f"'{warning_cue}'"))
+    if other_negation_cue and not negation_cue:
+        qualifiers.append(ELSEWHERE_NOTE.format(cue=f"'{other_negation_cue}'"))
+    return ContextItem(
+        label="", kind="mention", role="supplementary_mention", text=text, source_code="supp_ai",
+        external_id=external_id, title=title, location=location, url=url, qualifiers=qualifiers,
+        provenance=provenance, redistributable=False, priority=priority,
+    )  # fmt: skip
+
+
+def mention_is_human(item: ContextItem) -> bool:
+    return item.kind == "mention" and any(q in HUMAN_STUDY_NOTES for q in item.qualifiers)
+
+
 def fact_item(text: str, *, source_code: str | None = None, priority: int = 40) -> ContextItem:
     return ContextItem(label="", kind="fact", role="catalogue", text=text, source_code=source_code,
                        qualifiers=["HerbaGuard catalogue information"], priority=priority)  # fmt: skip
@@ -264,6 +368,8 @@ def fact_item(text: str, *, source_code: str | None = None, priority: int = 40) 
 
 _PREFIX: dict[Kind, str] = {
     "observation": "X",
+    "hepatotoxicity": "H",
+    "mention": "U",
     "classification": "C",
     "statement": "S",
     "mechanism": "M",
@@ -276,7 +382,9 @@ def _normalise(text: str) -> str:
     return " ".join(text.lower().split())
 
 
-RESERVED_SLOTS: dict[str, int] = {"observation": 2}
+# SUPP.AI mentions (U#) have no reserved slot: they rank last (priority 60+) and only fill room
+# that stronger evidence leaves, so they can never displace it.
+RESERVED_SLOTS: dict[str, int] = {"observation": 2, "hepatotoxicity": 2}
 
 
 def assemble(

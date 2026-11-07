@@ -1,0 +1,43 @@
+{
+    "900001": {
+        "animal_study": false,
+        "authors": [],
+        "clinical_study": true,
+        "doi": "10.0000/synthetic.1",
+        "fields_of_study": [
+            "Medicine"
+        ],
+        "human_study": true,
+        "pmid": 900001,
+        "retraction": false,
+        "title": "Synthetic clinical study",
+        "venue": "Test Journal",
+        "year": 2001
+    },
+    "900002": {
+        "animal_study": false,
+        "authors": [],
+        "clinical_study": false,
+        "doi": null,
+        "fields_of_study": [],
+        "human_study": true,
+        "pmid": 900002,
+        "retraction": true,
+        "title": "Retracted synthetic report",
+        "venue": "Test Journal",
+        "year": 2005
+    },
+    "900003": {
+        "animal_study": true,
+        "authors": [],
+        "clinical_study": false,
+        "doi": null,
+        "fields_of_study": [],
+        "human_study": false,
+        "pmid": 900003,
+        "retraction": false,
+        "title": "Synthetic animal study",
+        "venue": "Test Journal",
+        "year": 2010
+    }
+}

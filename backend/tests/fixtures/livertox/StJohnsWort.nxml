@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE book-part-wrapper PUBLIC "-//NLM//DTD BITS Book Interchange DTD v2.0 20151225//EN" "http://jats.nlm.nih.gov/extensions/bits/2.0/BITS-book2.dtd">
+<book-part-wrapper content-type="chapter" id="StJohnsWort" from-where="body" dtd-version="2.0">
+  <book-meta><book-id book-id-type="pmcid">livertox</book-id><book-title-group><book-title>LiverTox</book-title></book-title-group></book-meta>
+  <book-part book-part-type="chapter">
+    <book-part-meta>
+      <book-part-id book-part-id-type="pmcid">StJohnsWort</book-part-id>
+      <title-group><title>St. John's Wort</title></title-group>
+      <pub-history><date date-type="updated"><day>28</day><month>3</month><year>2020</year></date></pub-history>
+    </book-part-meta>
+    <body><sec><title>OVERVIEW</title><sec><title>Hepatotoxicity</title><p>Synthetic hepatotoxicity text: no convincing cases.</p><p>Likelihood score: E (unlikely cause of clinically apparent liver injury).</p></sec><sec><title>Mechanism of Injury</title><p>Synthetic mechanism text.</p></sec></sec></body>
+    <back><ref-list><ref><element-citation><pub-id pub-id-type="pmid">900001</pub-id></element-citation></ref><ref><element-citation><pub-id pub-id-type="pmid">900002</pub-id></element-citation></ref></ref-list></back>
+  </book-part>
+</book-part-wrapper>

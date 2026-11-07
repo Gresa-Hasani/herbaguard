@@ -19,6 +19,7 @@ from herbaguard.api.schemas.resources import (
     TaxonSummary,
 )
 from herbaguard.core.errors import NotFoundError
+from herbaguard.domain.name_overrides import override_for
 from herbaguard.models import (
     EvidenceItem,
     HerbalSubstance,
@@ -86,15 +87,15 @@ def resolve_herb(session: Session, query: str) -> HerbResolution:
     """Resolve free text to one curated herb (group of substances sharing an EMA name)."""
     from herbaguard.api.schemas.resources import NameOut
 
+    override = override_for(query)  # reviewed name overrides (domain.name_overrides)
     matches = repo.match_names(session, query, exact_only=True)
     partial = False
-    if not matches and len(query.strip()) >= 4:
+    if not matches and len(query.strip()) >= 4 and override is None:
         matches = repo.match_names(session, query, exact_only=False, limit=50)
         partial = True
     if not matches:
-        return HerbResolution(
-            query=query, status="not_found", note="No curated herb matches this name."
-        )
+        note = override.reason if override else "No curated herb matches this name."
+        return HerbResolution(query=query, status="not_found", note=note)
 
     substances = repo.substances_for_taxa(session, list({m.taxon_id for m in matches}))
     groups: dict[str, list[HerbalSubstance]] = {}
@@ -107,7 +108,8 @@ def resolve_herb(session: Session, query: str) -> HerbResolution:
             name=match.name, name_type=match.name_type, language=None, source_code=match.source_code
         )
 
-    if len(groups) > 1:
+    reviewed_ambiguous = override is not None and override.action == "ambiguous"
+    if len(groups) > 1 or (reviewed_ambiguous and groups):
         candidates = []
         for pharmaceutical, members in sorted(groups.items()):
             first = next(
@@ -130,7 +132,9 @@ def resolve_herb(session: Session, query: str) -> HerbResolution:
             query=query,
             status="ambiguous",
             candidates=candidates,
-            note="The name matches more than one herb.",
+            note=override.reason
+            if reviewed_ambiguous and override is not None
+            else "The name matches more than one herb.",
         )
     if not groups:
         return HerbResolution(

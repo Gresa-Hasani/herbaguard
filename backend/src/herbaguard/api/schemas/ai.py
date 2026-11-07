@@ -51,13 +51,24 @@ class PairClassification(BaseModel):
 
 class CitationOut(BaseModel):
     label: str = Field(examples=["S1"], description="Id used in the answer paragraphs")
-    kind: Literal["classification", "statement", "mechanism", "excerpt", "fact", "observation"]
+    kind: Literal[
+        "classification",
+        "statement",
+        "mechanism",
+        "excerpt",
+        "fact",
+        "observation",
+        "hepatotoxicity",
+        "mention",
+    ]
     role: Literal[
         "deterministic_classification",
         "direct_evidence",
         "graph_context",
         "catalogue",
         "experimental_evidence",
+        "hepatotoxicity_evidence",
+        "supplementary_mention",
     ]
     evidence_item_id: str | None
     external_id: str | None

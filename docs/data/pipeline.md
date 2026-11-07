@@ -14,7 +14,7 @@ herbaguard report                # counts, latest runs, data-quality issues
 herbaguard ema-report            # per-monograph, per-section extraction table (Markdown)
 ```
 
-Individual steps: `herbaguard ingest taxonomy|ema|nccih|labels|pubmed|mechanisms [--herb st_johns_wort ...]`, `herbaguard ingest mechanisms --fda-html-file page.html` (Phase 4; a browser-saved copy of the FDA CYP/transporter page if fda.gov refuses automated requests), `herbaguard ingest labels --max-pages N` (openFDA pages of 100 labels per herb; default 5).
+Individual steps: `herbaguard ingest taxonomy|ema|nccih|labels|pubmed|mechanisms [--herb st_johns_wort ...]`, `herbaguard ingest mechanisms --fda-html-file page.html` (Phase 4; a browser-saved copy of the FDA CYP/transporter page if fda.gov refuses automated requests), `herbaguard ingest labels --max-pages N` (openFDA pages of 100 labels per herb; default 5). External datasets from local downloads (no network access): `herbaguard ingest ddid|supp-ai|livertox|nih-dsld [--directory …]` — see [ddid.md](ddid.md) and [external-datasets.md](external-datasets.md).
 
 Optional environment: `NCBI_API_KEY` (raises the E-utilities limit from 3 to 10 requests/s), `HERBAGUARD_CONTACT_EMAIL` (sent as `From`).
 

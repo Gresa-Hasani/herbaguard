@@ -56,7 +56,7 @@ class Prompt:
         return f"{self.id}_v{self.version}"
 
 
-SYSTEM_PROMPT_VERSION = 2  # v2: rule 3a on experimental records (DDID)
+SYSTEM_PROMPT_VERSION = 4  # v2: 3a (DDID records); v3: 3b (LiverTox); v4: 3c (SUPP.AI mentions)
 
 
 @cache
@@ -131,14 +131,17 @@ def extractive_answer(context: EvidenceContext, *, reason: str | None = None) ->
         if item.kind == "classification":
             first = item.text.splitlines()
             paragraphs.append(Paragraph(" ".join(first[:3]), (item.label,)))
-    quoted = [i for i in context.items if i.kind in ("statement", "excerpt", "mechanism", "fact")][
-        :3
-    ]
+    quoted = [
+        i
+        for i in context.items
+        if i.kind in ("statement", "excerpt", "mechanism", "hepatotoxicity", "fact")
+    ][:3]
     for item in quoted:
         source = item.title or item.source_code or "Source"
         kind = {
             "graph_context": "Relationship from the knowledge graph",
             "catalogue": "HerbaGuard catalogue",
+            "hepatotoxicity_evidence": f"LiverTox hepatotoxicity record ({item.title or 'LiverTox'})",
         }.get(item.role, source)
         paragraphs.append(Paragraph(f'{kind}: "{item.text}"', (item.label,)))
     limitations = list(context.notes)
