@@ -200,7 +200,7 @@ def test_answer_cites_stored_evidence_with_provenance(
         "provider": "ollama",
         "model": "qwen3:4b",
     }
-    assert body["generation"]["prompts"] == ["system_v4", "interaction_v1"]
+    assert body["generation"]["prompts"] == ["system_v5", "interaction_v1"]
     cited = {c["label"]: c for c in body["citations"]}
     statement = next(c for c in cited.values() if c["kind"] == "statement")
     item = db_session.get(EvidenceItem, uuid.UUID(statement["evidence_item_id"]))

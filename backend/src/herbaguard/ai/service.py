@@ -71,7 +71,7 @@ from herbaguard.models import (
     Target,
 )
 from herbaguard.repositories import mechanisms as mechanism_repo
-from herbaguard.repositories.external import DDID, LIVERTOX, SUPP_AI, resolved_entity_ids
+from herbaguard.repositories.external import DDID, LIVERTOX, NIH_DSLD, SUPP_AI, resolved_entity_ids
 from herbaguard.services import evidence as evidence_service
 from herbaguard.services import interactions as interaction_service
 from herbaguard.services import mechanisms as mechanism_service
@@ -194,6 +194,16 @@ def _ask(
                 items += _experimental_observations(session, herb, drug)
                 items += _supplementary_mentions(session, herb, drug)
 
+    # 1b. NIH DSLD product-label information: labels for the herb itself, never interaction evidence.
+    if (
+        analysis.herbs
+        and not analysis.drugs
+        and analysis.intent
+        in (Intent.PLANT_INFORMATION, Intent.PLANT_SAFETY, Intent.EVIDENCE_COMPARISON)
+    ):
+        for herb in analysis.herbs[:MAX_HERBS_PER_QUESTION]:
+            items += _product_label_items(session, herb)
+
     # 2. herb and target mechanism context (stored effects with their hedging and study type)
     if not analysis.drugs:
         for herb in analysis.herbs[:MAX_HERBS_PER_QUESTION]:
@@ -247,9 +257,15 @@ def _ask(
     redistributable: dict[str, bool] = dict(
         session.execute(select(Source.code, Source.redistributable)).tuples().all()
     )
+    reserved = dict(ctx.RESERVED_SLOTS)
+    if any(item.kind == "product_label" for item in items):
+        reserved["product_label"] = (
+            1  # herb-only answers always show one label; interaction answers get none
+        )
     context = ctx.assemble(
         items, max_tokens=settings.ai_context_max_tokens, max_items=settings.ai_context_max_items,
         redistributable=redistributable, cloud_only_redistributable=cloud and settings.ai_cloud_send_source_text,
+        reserved=reserved,
     )  # fmt: skip
 
     # 5. generation (no model call when nothing citable was found)
@@ -394,6 +410,162 @@ def _hepatotoxicity_items(session: Session, herb: Any) -> list[ctx.ContextItem]:
     return items
 
 
+MAX_DSLD_PRODUCTS = 4
+
+
+def _dsld_provenance(record: SourceRecord, source: Source, location: str) -> ProvenanceOut:
+    return ProvenanceOut(
+        source_code=source.code, source_name=source.name, licence=source.licence,
+        licence_status=source.licence_status, retrieved_url=record.url,
+        retrieved_at=record.retrieved_at, source_version=record.content_sha256[:12],
+        extraction_method="dsld_csv_v1", location=location, excerpt=None,
+    )  # fmt: skip
+
+
+def _label_statement_text(product: ExternalEntity) -> tuple[list[str], int]:
+    statements = (product.attributes or {}).get("label_statements") or []
+    precautions = [
+        str(s.get("Statement")).strip()
+        for s in statements
+        if (s.get("Statement Type") or "").strip() == "Precautions"
+        and (s.get("Statement") or "").strip()
+    ]
+    return precautions, len(statements)
+
+
+def _product_label_items(session: Session, herb: Any) -> list[ctx.ContextItem]:
+    """NIH DSLD product-label information for a herb, from labels whose matched ingredient entity is
+    mapped to the herb's species with status ``resolved`` only. A label is manufacturer information:
+    never evidence of an interaction, efficacy or safety, and never part of the A–E class.
+
+    Only herb-only questions receive these items (see ``_ask``). No item is added when no label is
+    mapped, because a missing product is not evidence of anything."""
+    taxa = select(HerbalSubstance.taxon_id).where(HerbalSubstance.id.in_(herb.substance_ids))
+    ingredient_ids = resolved_entity_ids(NIH_DSLD, "taxon", taxa)
+    ingredient_record = aliased(SourceRecord, name="dsld_ingredient_record")
+    rows = session.execute(
+        select(ExternalRelation, ExternalEntity, SourceRecord, Source, ingredient_record)
+        .join(ExternalEntity, ExternalEntity.id == ExternalRelation.subject_id)
+        .join(SourceRecord, SourceRecord.id == ExternalEntity.source_record_id)
+        .join(Source, Source.code == ExternalEntity.source_code)
+        .join(ingredient_record, ingredient_record.id == ExternalRelation.source_record_id)
+        .where(
+            ExternalRelation.source_code == NIH_DSLD,
+            ExternalRelation.predicate == "lists_ingredient",
+            ExternalRelation.object_id.in_(ingredient_ids),
+            ExternalEntity.kind == "dsld_product",
+        )
+    ).all()
+    if not rows:
+        return []
+    products: dict[Any, dict[str, Any]] = {}
+    for relation, product, record, source, facts_record in rows:
+        entry = products.setdefault(
+            product.id,
+            {"product": product, "record": record, "source": source, "relations": [],
+             "facts_records": []},
+        )  # fmt: skip
+        entry["relations"].append(relation)
+        entry["facts_records"].append(facts_record)
+
+    def rank(entry: dict[str, Any]) -> tuple[bool, bool, int, str]:
+        overview = (entry["product"].attributes or {}).get("overview") or {}
+        precautions, _ = _label_statement_text(entry["product"])
+        on_market = (overview.get("Market Status") or "").strip().lower() == "on market"
+        return (not on_market, not overview, -len(precautions), entry["product"].external_id)
+
+    shown = sorted(products.values(), key=rank)[:MAX_DSLD_PRODUCTS]
+    herb_name = herb.herb.common_name or herb.herb.pharmaceutical_name
+    first = shown[0]
+    first_rows = ", ".join(map(str, first["product"].source_row_numbers[:5]))
+    summary = ctx.product_label_item(
+        text=(
+            f"NIH DSLD holds {len(products)} product label(s) that list {herb_name} by an exact, "
+            f"resolved ingredient name; {len(shown)} label(s) are shown. Product labels are "
+            "manufacturer information, not clinical evidence: a listing, or a missing listing, does "
+            "not show that the herb or product is effective, safe or free of interactions."
+        ),
+        title="NIH DSLD product-label coverage",
+        location="product-label coverage",
+        url=None,
+        external_id=None,
+        provenance=[
+            _dsld_provenance(
+                first["record"],
+                first["source"],
+                f"{first['record'].native_id}, row(s) {first_rows}",
+            )
+        ],
+        priority=56,
+    )
+    items = [summary]
+    for rank_index, entry in enumerate(shown):
+        product = entry["product"]
+        attrs = product.attributes or {}
+        overview = attrs.get("overview") or {}
+        label = product.label or overview.get("Product Name") or product.external_id
+        identifiers = product.identifiers or {}
+        identity = (
+            f"NIH DSLD product label '{label}' (DSLD ID: {product.external_id}; market status: "
+            f"{overview.get('Market Status') or 'not stated'}"
+        )
+        if identifiers.get("upc"):
+            identity += f"; UPC: {identifiers['upc']}"
+        parts = [identity + ")."]
+        labelled = []
+        for relation in entry["relations"]:
+            row = relation.attributes or {}
+            amount = " ".join(
+                x
+                for x in (
+                    (row.get("Amount Per Serving") or "").strip(),
+                    (row.get("Amount Per Serving Unit") or "").strip(),
+                )
+                if x
+            )
+            category = (row.get("DSLD Ingredient Categories") or "").strip()
+            labelled.append(
+                f"{(row.get('Ingredient') or '').strip()} — {amount or 'amount not stated'} per serving"
+                + (f" (label ingredient category: {category})" if category else "")
+            )
+        parts.append("Labelled ingredient: " + "; ".join(dict.fromkeys(labelled)) + ".")
+        precautions, statements = _label_statement_text(product)
+        for statement in precautions[:2]:
+            parts.append(f'Manufacturer\'s "Precautions" statement: "{statement}"')
+        parts.append(f"Label statements stored for this product: {statements}.")
+        location = (
+            f"{entry['record'].native_id}, row(s) "
+            f"{', '.join(map(str, product.source_row_numbers[:5]))}"
+        )
+        provenance = [_dsld_provenance(entry["record"], entry["source"], location)]
+        for relation, facts_record in zip(entry["relations"], entry["facts_records"], strict=False):
+            fact_location = (
+                f"{facts_record.native_id}, row(s) "
+                f"{', '.join(map(str, relation.source_row_numbers[:5]))}"
+            )
+            if all(p.location != fact_location for p in provenance):
+                provenance.append(_dsld_provenance(facts_record, entry["source"], fact_location))
+        items.append(
+            ctx.product_label_item(
+                text=" ".join(parts),
+                title=f"NIH DSLD: {label}",
+                location="product label",
+                url=identifiers.get("url"),
+                external_id=product.external_id,
+                provenance=provenance,
+                extra_qualifiers=[
+                    f"the label lists '{entry['relations'][0].attributes.get('Ingredient', '')}', matched "
+                    f"to {herb.herb.pharmaceutical_name} only by an exact, resolved name; the product's "
+                    "plant part or preparation may differ",
+                    "the product label is manufacturer information; HerbaGuard does not verify its "
+                    "composition or claims",
+                ],
+                priority=55 + rank_index,
+            )
+        )
+    return items
+
+
 MAX_OBSERVATIONS_PER_PAIR = 4
 _CONTEXT_ORDER = {"human": 0, "animal": 1, "unknown": 2}
 
@@ -479,7 +651,9 @@ def _experimental_observations(session: Session, herb: Any, drug: Any) -> list[c
 
 # --------------------------------------------------------------------------- SUPP.AI mentions
 
-MAX_MENTIONS_PER_PAIR = 3
+# Only the highest-ranked eligible mention of a pair is built; `context.assemble` then includes at
+# most one mention (context.MENTION_LIMIT) across the whole context, and only from free capacity.
+MAX_MENTIONS_PER_PAIR = 1
 # After every other kind of evidence (statements 5/35, mechanisms 10/30, excerpts 20+, DDID 23-28,
 # LiverTox 22-25, facts 25-40): mentions only fill slots and tokens that nothing stronger uses.
 MENTION_PRIORITY = 60

@@ -24,11 +24,13 @@ graph context (services/mechanisms)       herb effects (with hedging, study type
                                             machine-extracted, never a confirmed interaction or a class
    +  LiverTox hepatotoxicity (H# items)      liver questions only; resolved herb mappings only; LiverTox
                                             likelihood score as published (never an A–E class)
+   +  NIH DSLD product labels (P# items)      herb-only questions; resolved herb mappings only;
+                                            manufacturer label information, never evidence or a class
    ▼
 hybrid retrieval (ai/retrieval.py)         FTS + pgvector over retrieval_segment, RRF, scoped to
    │                                       the recognised herbs/drugs/targets, current evidence only
    ▼
-evidence assembly (ai/context.py)          labelled items C#/S#/M#/E#/F#/X#/H#/U#, priority, de-duplication,
+evidence assembly (ai/context.py)          labelled items C#/S#/M#/E#/F#/X#/H#/U#/P#, priority, de-duplication,
    │                                       token budget without truncation, licensing guard
    ▼
 generation (ai/generation.py)              versioned prompts, provider interface, JSON schema,
@@ -75,7 +77,8 @@ Retrieval, evidence assembly, model invocation and validation are separate modul
 | Documents are data | angle brackets in source text are escaped; system prompt rule; obeying injected text is caught by validation |
 | Cloud licensing | cloud providers receive no source text unless `ai_cloud_send_source_text=true`, and then only from redistributable sources |
 | LiverTox likelihood score is not an interaction class; LiverTox never shows liver safety | `service._hepatotoxicity_items` labels every H# item and shows master-list and chapter scores side by side; `validation.hepatotoxicity_issue` (`livertox_score_as_class`, `hepatotoxicity_overstated` → critical) |
-| SUPP.AI mentions never confirm an interaction, never show "no interaction", never displace other evidence | U# items have no reserved slot and rank last (priority 60+); `ai/mentions` derives the study type (flags plus in-vitro/animal downgrades) and clause-aware, pair-specific negation and warnings; `validation.mention_issue`: `supp_ai_absence_as_no_interaction` and `supp_ai_mention_as_confirmed` → critical for SUPP.AI-only paragraphs, `mention_nonhuman_as_clinical` and `negated_mention_as_positive` → paragraph removed; `experimental_as_clinical` also covers U# items |
+| DSLD product labels never become clinical evidence | `service._product_label_items` uses resolved mappings only and labels every P# item; `validation.product_label_issue` (`product_label_as_clinical`, `product_label_as_efficacy`, `product_label_dosing` → critical) rejects a conclusion drawn from P# items alone; P# items never reach an interaction assertion or the A–E class |
+| SUPP.AI mentions never confirm an interaction, never show "no interaction", never displace other evidence | U# items have no reserved slot, rank last (priority 60+) and at most one is included in a context (`context.MENTION_LIMIT`), only from capacity left after every other item; `ai/mentions` derives the study type (flags plus in-vitro/animal downgrades) and clause-aware, pair-specific negation and warnings; `validation.mention_issue`: `supp_ai_absence_as_no_interaction` and `supp_ai_mention_as_confirmed` → critical for SUPP.AI-only paragraphs, `mention_nonhuman_as_clinical` and `negated_mention_as_positive` → paragraph removed; `experimental_as_clinical` also covers U# items |
 | Model writes nothing | the AI layer has no write path to scientific tables; only indexing (CLI) writes segments/embeddings |
 
 ## 4. Degradation

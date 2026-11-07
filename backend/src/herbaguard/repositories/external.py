@@ -20,6 +20,7 @@ from herbaguard.models import ExternalEntity
 DDID = "ddid"
 LIVERTOX = "livertox"
 SUPP_AI = "supp_ai"
+NIH_DSLD = "nih_dsld"
 RESOLVED = "resolved"
 
 

@@ -56,7 +56,9 @@ class Prompt:
         return f"{self.id}_v{self.version}"
 
 
-SYSTEM_PROMPT_VERSION = 4  # v2: 3a (DDID records); v3: 3b (LiverTox); v4: 3c (SUPP.AI mentions)
+SYSTEM_PROMPT_VERSION = (
+    5  # v2: 3a (DDID); v3: 3b (LiverTox); v4: 3c (SUPP.AI); v5: 3d (DSLD labels)
+)
 
 
 @cache

@@ -50,7 +50,7 @@ Response (abridged, real structure):
 }
 ```
 
-`classification` is copied from the interaction service and is identical to `POST /interactions/check` for the same pair. `citations` are built from stored rows only (`url` from provenance, `excerpt` = stored text, or for `graph_context` items the deterministic relationship description). Citation labels: `C` classification, `S` source statement, `M` graph relationship, `E` retrieved excerpt, `F` catalogue fact, `X` experimental record from an external dataset (DDID; role `experimental_evidence`, with species, study context and the dataset's own label — never an A–E class). `generation.regenerations` counts corrected re-requests after a failed check.
+`classification` is copied from the interaction service and is identical to `POST /interactions/check` for the same pair. `citations` are built from stored rows only (`url` from provenance, `excerpt` = stored text, or for `graph_context` items the deterministic relationship description). Citation labels: `C` classification, `S` source statement, `M` graph relationship, `E` retrieved excerpt, `F` catalogue fact, `X` experimental record from an external dataset (DDID; role `experimental_evidence`, with species, study context and the dataset's own label — never an A–E class), `P` NIH DSLD product label (herb-only questions; role `product_label_information`, manufacturer wording, never clinical evidence or an A–E class). `generation.regenerations` counts corrected re-requests after a failed check.
 
 ## `POST /api/v1/ai/retrieve`
 
