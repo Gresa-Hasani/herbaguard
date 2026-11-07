@@ -24,7 +24,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from herbaguard.ai.context import EvidenceContext
+from herbaguard.ai.context import ContextItem, EvidenceContext
 
 ANSWER_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -107,7 +107,8 @@ _SAFE = re.compile(
     r"\b(is|are|be|considered|generally|completely|totally|perfectly|likely|possibly|probably|usually)"
     r"\s+(safe|harmless)\b|"
     r"\bsafe to (take|use|combine|consume)\b|\b(no|without) (any )?risk\b|\brisk-free\b|"
-    r"\bno (safety )?concerns?\b",
+    r"\bno (safety )?concerns?\b|"
+    r"\b(can|could|may) (be )?safely\b|\bsafely (take|use|combine|consume|be (taken|used|combined))\b",
     re.I,
 )
 _NEGATION = re.compile(
@@ -141,6 +142,51 @@ _HEDGED_GRAPH = re.compile(
 )
 
 
+# --- limitation statements (corrected 2026-11-07) -------------------------------------------------
+# A limitation may *deny or limit* a safety conclusion ("The absence of reported interactions does not
+# mean the combination is safe.") but must never assert one. The safety wording is checked within its
+# own sentence and clause; it is accepted only when one of these denial constructions governs it
+# directly. Anything else stays a critical safety claim.
+_CLAUSE_BOUNDARY = re.compile(
+    r"[,;:()\u2013\u2014]|\s-\s|\b(?:and|but|so|therefore|thus|hence|however|although|though|yet|while|"
+    r"whereas|because|since)\b",
+    re.I,
+)
+# subject between the denial and the safety wording ("the combination", "that ginkgo"): no verbs or
+# connectives that would start a new assertion ("No interaction means it is safe")
+_NP = (r"(?:(?!(?:means?|shows?|proves?|indicates?|suggests?|impl(?:y|ies)|confirms?|establish(?:es)?|"
+       r"is|are|was|were|be|been|so|thus|therefore|hence)\b)[\w'-]+\s+){0,5}"
+       r"(?:(?:is|are|was|were|be|would be|will be)\s+)?")  # fmt: skip
+_NEG = r"(?:\b(?:not|never|cannot)|n't)"
+_DENIAL = re.compile(
+    # "is not / cannot be / has not been shown to be / should not be assumed to be" + safety wording
+    rf"{_NEG}\s+(?:necessarily\s+|always\s+|automatically\s+|yet\s+)?(?:(?:be|been)\s+)?"
+    r"(?:(?:shown|proven|established|demonstrated|confirmed|known|assumed|presumed|considered|regarded|"
+    r"thought)\s+)?(?:to\s+)?$"
+    # "does not mean / imply / establish (that) the combination is" + safety wording
+    rf"|{_NEG}\s+(?:necessarily\s+|automatically\s+|by itself\s+|on its own\s+)?"
+    rf"(?:mean|imply|implies|indicate|establish|show|prove|confirm|guarantee|suggest)\w*\s+(?:that\s+)?{_NP}$"
+    # "no / insufficient evidence (to show) that the combination is" + safety wording
+    r"|\b(?:no|insufficient|limited|inadequate|not enough|lack of|absence of)\s+(?:[\w'-]+\s+){0,2}?"
+    r"(?:evidence|data|proof|studies|research)\s+(?:(?:to\s+)?(?:show|establish|confirm|prove|suggest|"
+    rf"support|indicate|demonstrate)\w*\s+(?:that\s+)?|that\s+){_NP}$"
+    # "unclear whether / unknown if the combination is" + safety wording
+    rf"|\bwhether\s+{_NP}$|\b(?:unclear|uncertain|unknown|not known|not clear)\s+if\s+{_NP}$",
+    re.I,
+)
+
+
+def limitation_safety_claims(text: str) -> list[str]:
+    """Safety wording in a limitation that is not denied by its own sentence and clause."""
+    claims = []
+    for sentence in _sentences(text.replace("\u2019", "'")):
+        for match in _SAFE.finditer(sentence):
+            clause = _CLAUSE_BOUNDARY.split(sentence[: match.start()])[-1]
+            if not _DENIAL.search(clause):
+                claims.append(match.group(0))
+    return claims
+
+
 # --- effect direction ---------------------------------------------------------------------------
 # A claimed change in exposure/effect must have the same direction in the cited source text and must
 # not contradict a cited mechanism: induction lowers a substrate's exposure, inhibition raises it.
@@ -157,6 +203,116 @@ _BLEEDING = re.compile(r"\b(?:bleed\w*|ha?emorrhag\w*)\b", re.I)
 # "clearance" moves opposite to exposure: "increased clearance" is a decrease in exposure.
 _CLEARANCE_UP = re.compile(rf"\b{_UP}{_GAP}clearance\b|\bclearance{_GAP}{_UP}\b", re.I)
 _CLEARANCE_DOWN = re.compile(rf"\b{_DOWN}{_GAP}clearance\b|\bclearance{_GAP}{_DOWN}\b", re.I)
+
+# --- clinical risk (corrected 2026-11-07) -----------------------------------------------------------
+# A claim about adverse-event risk ("may increase the risk of bleeding", "lowers the risk of clots") is
+# a clinical claim. It needs a cited statement that states the same risk change directly. It is never
+# derived from a mechanism or an exposure change: lower exposure does not imply lower risk, and a
+# bleeding warning about the drug alone does not support a herb-caused bleeding risk.
+_RISK_NOUN = re.compile(
+    r"\b(?:risks?|bleed\w*|ha?emorrhag\w*|toxicit\w*|adverse (?:events?|effects?|reactions?)|"
+    r"side[- ]effects?|thrombo\w*|clot\w*|strokes?|embol\w*|rejection)\b",
+    re.I,
+)
+_RISK_FAMILIES = {
+    "bleeding": re.compile(r"\b(?:bleed\w*|ha?emorrhag\w*)", re.I),
+    "thrombosis": re.compile(r"\b(?:thrombo\w*|clot\w*|strokes?|embol\w*)", re.I),
+    "toxicity": re.compile(r"\btoxic\w*", re.I),
+    "adverse effects": re.compile(r"\b(?:adverse|side[- ]effects?)", re.I),
+    "rejection": re.compile(r"\brejection\b", re.I),
+}
+_DIRECTION_WORD = re.compile(rf"\b(?:(?P<up>{_UP})|(?P<down>{_DOWN}))\b", re.I)
+_RISK_PHRASE = (
+    re.compile(  # masked before exposure/effect detection ("adverse effects" is not an effect)
+        rf"\b(?:{_UP}|{_DOWN}){_GAP}{_RISK_NOUN.pattern}(?:\s+of\s+[\w'-]+(?:\s+[\w'-]+)?)?|"
+        rf"{_RISK_NOUN.pattern}{_GAP}(?:{_UP}|{_DOWN})|{_RISK_NOUN.pattern}",
+        re.I,
+    )
+)
+_CLAUSES = re.compile(r"(?<=[.;!?])\s+|,|\b(?:and|but|while|whereas)\b")
+# drug-centric sources: only their sentences that name the herb are statements about the herb
+_DRUG_CENTRIC_SOURCES = {"openfda_label", "fda_cyp_table"}
+_GENERIC_HERB_WORDS = {
+    "herb", "herba", "herbal", "plant", "root", "radix", "leaf", "leaves", "folium", "flower", "flos",
+    "fruit", "fructus", "seed", "semen", "bark", "cortex", "rhizome", "rhizoma", "extract", "extracts",
+    "juice", "oil", "aetheroleum", "tea", "common", "dried", "powder",
+}  # fmt: skip
+
+
+# sentence split that keeps abbreviations together ("St. John's wort", "e.g.", "i.e.", "vs.", "Dr.")
+_SOURCE_SENTENCE_END = re.compile(
+    r"(?<!\bSt\.)(?<!\bDr\.)(?<!\bvs\.)(?<!e\.g\.)(?<!i\.e\.)(?<!\bapprox\.)(?<=[.!?])\s+"
+)
+
+
+def _source_sentences(text: str) -> list[str]:
+    return [x.strip() for x in _SOURCE_SENTENCE_END.split(text) if x.strip()]
+
+
+def _risk_claims(text: str) -> set[tuple[str, frozenset[str]]]:
+    """(direction, outcome families) of non-negated risk statements; the direction word nearest to
+    the risk noun decides ("lower exposure raises the risk of stroke" is a higher risk)."""
+    found: set[tuple[str, frozenset[str]]] = set()
+    for clause in _CLAUSES.split(text):
+        families = frozenset(f for f, pattern in _RISK_FAMILIES.items() if pattern.search(clause))
+        for noun in _RISK_NOUN.finditer(clause):
+            before = clause[: noun.start()]
+            window = " ".join(before.split()[-7:])
+            matches = list(_DIRECTION_WORD.finditer(window))
+            word: re.Match[str] | None
+            if matches:
+                word = matches[-1]
+                negated = bool(_STRENGTH_NEGATION.search(window[: word.start()]))
+            else:
+                after = " ".join(clause[noun.end() :].split()[:5])
+                word = _DIRECTION_WORD.search(after)
+                negated = word is not None and bool(
+                    re.search(r"\b(?:not|no|never)\b", after[: word.start()], re.I)
+                )
+            if word is None or negated:
+                continue
+            found.add(("up" if word.group("up") else "down", families))
+    return found
+
+
+def risk_issue(paragraph: str, evidence: str) -> str | None:
+    """Why a paragraph's adverse-event risk claim lacks direct support in ``evidence``, or None."""
+    supported = _risk_claims(evidence)
+    for direction, families in sorted(_risk_claims(paragraph), key=lambda c: (c[0], sorted(c[1]))):
+        if any(d == direction and (not families or families & f) for d, f in supported):
+            continue
+        outcome = ", ".join(sorted(families)) or "adverse events"
+        level = "higher" if direction == "up" else "lower"
+        return f"Claims a {level} risk of {outcome} that no cited statement directly supports."
+    return None
+
+
+def _terms(name: str) -> set[str]:
+    words = re.findall(r"[a-z][a-z']{3,}", _fold(name).replace("liquorice", "licorice"))
+    return {w for w in words if w not in _GENERIC_HERB_WORDS}
+
+
+def _mentions(text: str, terms: set[str]) -> bool:
+    folded = _fold(text).replace("liquorice", "licorice")
+    return any(re.search(rf"\b{re.escape(t)}\b", folded) for t in terms)
+
+
+def herb_evidence(items: list[ContextItem], herb_terms: set[str]) -> str:
+    """Cited text that is about the herb: herb-specific items whole (monographs, fact sheets, mechanism
+    and experimental records); from drug labels and the FDA table only the sentences naming the herb."""
+    parts = []
+    for item in items:
+        if item.kind == "classification":
+            continue
+        if (
+            item.kind in ("mechanism", "observation")
+            or item.source_code not in _DRUG_CENTRIC_SOURCES
+        ):
+            parts.append(item.text)
+        else:
+            parts.extend(x for x in _source_sentences(item.text) if _mentions(x, herb_terms))
+    return " ".join(parts)
+
 
 # --- strength of evidence --------------------------------------------------------------------------
 _STRENGTH = re.compile(
@@ -198,15 +354,19 @@ def _affirmative(pattern: re.Pattern[str], text: str) -> list[str]:
 
 
 def direction_issue(paragraph: str, evidence: str) -> str | None:
-    """Why a paragraph's effect-direction claim is not supported by ``evidence`` (the cited source
-    texts, without classification items), or None."""
-    claims = _direction(paragraph)
+    """Why a paragraph's effect-direction or risk claim is not supported by ``evidence`` (the cited
+    source texts that may support it, without classification items), or None."""
+    reason = risk_issue(paragraph, evidence)
+    if reason:
+        return reason
     if _BLEEDING.search(paragraph) and not _BLEEDING.search(evidence):
         return "Claims a bleeding risk that the cited items do not mention."
+    claims = _direction(_RISK_PHRASE.sub(" ", paragraph))  # exposure and effect claims only
     if not claims:
         return None
     # Evidence direction from exposure/effect statements (clearance inverted) and from mechanism verbs
     # (inhibition raises a substrate's exposure, induction lowers it) — not from bare "increased".
+    evidence = _RISK_PHRASE.sub(" ", evidence)
     evidence_dirs = _direction(evidence)
     up = "up" in evidence_dirs or bool(_INHIBITION.search(evidence))
     down = "down" in evidence_dirs or bool(_INDUCTION.search(evidence))
@@ -375,6 +535,10 @@ def validate(
         for i in context.items if i.kind == "classification"
         for m in [re.search(r"Pair: .+? \+ (.+)", i.text)] if m
     }  # fmt: skip
+    pairs = [m for i in context.items if i.kind == "classification"
+             for m in [re.search(r"Pair: (.+?) \+ (.+)", i.text)] if m]  # fmt: skip
+    herb_terms = set().union(*(_terms(m.group(1)) for m in pairs))
+    drug_terms = set().union(*(_terms(m.group(2)) for m in pairs))
     for index, para in enumerate(paragraphs):
         valid = tuple(dict.fromkeys(c for c in para.citations if c in items))
         for bad in sorted(set(para.citations) - set(valid)):
@@ -461,7 +625,20 @@ def validate(
                 "Presents animal or unspecified-species records as clinical evidence.", index))  # fmt: skip
             continue
         source_text = " ".join(items[c].text for c in valid if items[c].kind != "classification")
-        reason = direction_issue(para.text, source_text)
+        # A sentence about the herb is checked only against cited statements about the herb, so that an
+        # unrelated passage (e.g. a label's own bleeding warning) cannot support it. Sentences about the
+        # drug alone, and answers without a herb-drug pair, use all cited text as before.
+        about_herb = (
+            herb_evidence([items[c] for c in valid], herb_terms) if herb_terms else source_text
+        )
+        reason = None
+        for sentence in _source_sentences(para.text):
+            names_drug_only = not _mentions(sentence, herb_terms) and _mentions(
+                sentence, drug_terms
+            )
+            reason = direction_issue(sentence, source_text if names_drug_only else about_herb)
+            if reason:
+                break
         if reason:
             result.issues.append(Issue("effect_direction_unsupported", "removed", reason, index))
             continue
@@ -472,10 +649,10 @@ def validate(
         result.paragraphs.append(Paragraph(para.text, valid))
 
     for text_ in limitations:
-        if _SAFE.search(text_) and not _NEGATION.search(text_):
-            result.issues.append(
-                Issue("safety_claim", "critical", "A limitation claims safety.", text=text_)
-            )
+        claims = limitation_safety_claims(text_)
+        if claims:
+            result.issues.append(Issue("safety_claim", "critical",
+                                       f"A limitation claims safety: '{claims[0]}'.", text=text_))  # fmt: skip
     if not result.paragraphs:
         result.issues.append(
             Issue("no_supported_content", "critical", "No paragraph passed validation.")
