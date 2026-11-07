@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 from herbaguard.ai import service
 from herbaguard.ai.context import (
+    MENTION_LIMIT,
     RESERVED_SLOTS,
     ContextItem,
     EvidenceContext,
@@ -58,7 +59,7 @@ def _observation(n: int) -> ContextItem:
                        source_code="ddid", priority=24 + n)  # fmt: skip
 
 
-def _mentions(n: int = MAX_MENTIONS_PER_PAIR, size: int = 600) -> list[ContextItem]:
+def _mentions(n: int = 3, size: int = 600) -> list[ContextItem]:
     return [mention_item(text=f"SUPP.AI machine-extracted mention {i}: " + "x" * size, study_type="human",
                          negation_cue=None, external_id=None, url=None, title=None, location="l", provenance=[],
                          priority=MENTION_PRIORITY + i) for i in range(n)]  # fmt: skip
@@ -77,6 +78,8 @@ def test_supp_ai_has_no_reserved_slot_and_ranks_after_all_other_evidence() -> No
     assert "mention" not in RESERVED_SLOTS
     assert RESERVED_SLOTS == {"observation": 2, "hepatotoxicity": 2}  # DDID and LiverTox unchanged
     assert MENTION_PRIORITY > 40  # after statements, mechanisms, excerpts, DDID, LiverTox and facts
+    assert MENTION_LIMIT == 1  # at most one mention in the whole assembled context
+    assert MAX_MENTIONS_PER_PAIR == 1  # only the pair's highest-ranked mention is a candidate
 
 
 def test_sjw_cyclosporine_keeps_the_fda_statement_and_ddid_records() -> None:
@@ -116,10 +119,10 @@ def test_mentions_only_fill_free_room_and_never_consume_needed_tokens() -> None:
     with_ = _chosen([*base, *_mentions()])
     assert [x for x in with_ if not x.startswith("mention:")] == _chosen(list(base))
     assert (
-        sum(x.startswith("mention:") for x in with_) == MAX_MENTIONS_PER_PAIR
-    )  # free room is used
-    # a tight token budget: the large mentions do not fit, nothing else is affected
-    tight = [CLASSIFICATION, *(_statement("y" * 1500 + str(i)) for i in range(5))]
+        sum(x.startswith("mention:") for x in with_) == MENTION_LIMIT
+    )  # free room is used, for one mention only
+    # a tight token budget: the mention does not fit, nothing else is affected
+    tight = [CLASSIFICATION, *(_statement("y" * 1500 + str(i)) for i in range(6))]
     assert [
         x for x in _chosen([*tight, *_mentions()], max_tokens=2600) if not x.startswith("mention:")
     ] == _chosen(list(tight), max_tokens=2600)
@@ -185,6 +188,131 @@ def test_adding_supp_ai_never_changes_any_other_context_item(
     if "warfarin" in question:
         assert re.search(r'<evidence id="X\d+"', with_mentions)  # DDID present
         assert re.search(r'<evidence id="U\d+"', with_mentions)  # and SUPP.AI fills free room
+
+
+# ------------------------------------------------------------------- 5. conditional inclusion
+
+
+def _evidence(context: EvidenceContext) -> list[tuple[str, str, str, int]]:
+    """Every item except the classification block and the supplementary mentions."""
+    return [
+        (i.label, i.kind, i.text, i.priority)
+        for i in context.items
+        if i.kind not in ("mention", "classification")
+    ]
+
+
+def _mention_items(context: EvidenceContext) -> list[ContextItem]:
+    return [i for i in context.items if i.kind == "mention"]
+
+
+def test_one_mention_is_included_when_genuine_free_capacity_exists() -> None:
+    base = [
+        CLASSIFICATION,
+        *(_statement(f"Decisive statement {i}.") for i in range(5)),
+        _observation(0),
+    ]
+    context = assemble([*base, *_mentions(3)], max_tokens=2600, max_items=8)
+    included = _mention_items(context)
+    assert len(included) == MENTION_LIMIT == 1
+    only = included[0]
+    assert only.label == "U1" and only.role == "supplementary_mention"
+    assert only.text == _mentions(1)[0].text  # the highest-ranked candidate, unmodified
+    assert only.redistributable is False
+    assert "SUPP.AI machine-extracted supplementary interaction mention" in only.qualifiers[0]
+    assert "NOT a confirmed interaction" in " ".join(only.qualifiers)
+    assert context.items[-1] is only  # placed after every other item, never in front of one
+
+
+def test_mention_is_omitted_when_the_item_limit_is_exhausted() -> None:
+    full = [
+        CLASSIFICATION,
+        *(_statement(f"Decisive statement {i}.") for i in range(6)),
+        _observation(0),
+        _observation(1),
+    ]  # 8 evidence items: both limits are fully used
+    before = assemble(list(full), max_tokens=2600, max_items=8)
+    after = assemble([*full, *_mentions(1)], max_tokens=2600, max_items=8)
+    assert len(_evidence(before)) == 8
+    assert not _mention_items(after)
+    assert _evidence(after) == _evidence(before)
+    assert after.omitted == 1  # the mention did not fit, and is reported as left out
+
+
+def test_a_mention_uses_the_one_free_slot_that_nothing_else_needs() -> None:
+    base = [
+        CLASSIFICATION,
+        *(_statement(f"Decisive statement {i}.") for i in range(5)),
+        _observation(0),
+        _observation(1),
+    ]  # 7 evidence items: exactly one slot free
+    context = assemble([*base, *_mentions(3)], max_tokens=2600, max_items=8)
+    assert len(_mention_items(context)) == 1
+    assert len(_evidence(context)) == 7
+
+
+def test_mention_is_omitted_when_the_token_budget_is_exhausted() -> None:
+    bulk = [CLASSIFICATION, *(_statement("y" * 1500 + str(i)) for i in range(6))]
+    tight = assemble([*bulk, *_mentions(1)], max_tokens=2600, max_items=8)
+    assert not _mention_items(tight)
+    assert _evidence(tight) == _evidence(assemble(list(bulk), max_tokens=2600, max_items=8))
+    assert tight.omitted == 1
+    # the same items leave room under a larger budget: tokens, not the policy, excluded the mention
+    assert len(_mention_items(assemble([*bulk, *_mentions(1)], max_tokens=5000, max_items=8))) == 1
+
+
+def test_at_most_one_mention_is_included_across_the_whole_context() -> None:
+    first, second, third = _mentions(3)
+    other_pair = mention_item(text="SUPP.AI machine-extracted mention from another herb-drug pair.",
+                              study_type="clinical", negation_cue=None, external_id=None, url=None,
+                              title=None, location="l", provenance=[], priority=MENTION_PRIORITY)  # fmt: skip
+    context = assemble(
+        [CLASSIFICATION, first, other_pair, second, third], max_tokens=2600, max_items=8
+    )
+    included = _mention_items(context)
+    assert (
+        len(included) == 1 and included[0].text == first.text
+    )  # one mention, highest ranked first
+
+
+def test_an_oversized_mention_is_omitted() -> None:
+    base = [CLASSIFICATION, _statement("Short decisive statement."), _observation(0)]
+    huge = _mentions(1, size=12000)[0]
+    without = assemble(list(base), max_tokens=2600, max_items=8)
+    with_huge = assemble([*base, huge], max_tokens=2600, max_items=8)
+    assert not _mention_items(with_huge)
+    assert _evidence(with_huge) == _evidence(without)
+    assert with_huge.omitted == 1 and "left out" in with_huge.notes[0]
+
+
+def test_including_a_mention_never_changes_other_evidence() -> None:
+    base = [CLASSIFICATION, _statement("Short decisive statement."), _observation(0),
+            ContextItem(label="", kind="excerpt", role="direct_evidence", text="Retrieved excerpt.",
+                        source_code="pubmed", priority=21)]  # fmt: skip
+    without = assemble(list(base), max_tokens=2600, max_items=8)
+    with_mention = assemble([*base, *_mentions(3)], max_tokens=2600, max_items=8)
+    assert _evidence(with_mention) == _evidence(without)
+    assert len(_mention_items(with_mention)) == 1
+
+
+@pytest.mark.parametrize(("study_type_key", "expected"), [
+    ("clinical", "study type: clinical study"),
+    ("human", "study type: human study, not flagged as a clinical study"),
+    ("animal_and_human", "do not present it as human clinical evidence"),
+    ("in_vitro", "NOT patient or clinical evidence"),
+    ("animal_wording", "NOT patient or clinical evidence"),
+    ("conflicting", "NOT patient or clinical evidence"),
+    ("animal", "study type: animal study (SUPP.AI paper flag): NOT human clinical evidence"),
+    ("unknown", "study type: not stated by SUPP.AI: NOT human clinical evidence"),
+])  # fmt: skip
+def test_every_mention_keeps_its_safety_labels(study_type_key: str, expected: str) -> None:
+    item = mention_item(text="m", study_type=study_type_key, negation_cue=None, external_id=None,
+                        url=None, title=None, location="l", provenance=[], priority=MENTION_PRIORITY)  # fmt: skip
+    assert "SUPP.AI machine-extracted supplementary interaction mention" in item.qualifiers[0]
+    assert any(expected in q for q in item.qualifiers)
+    assert any("a mention alone never establishes an interaction" in q for q in item.qualifiers)
+    assert any("never sent to cloud models" in q for q in item.qualifiers)
+    assert item.redistributable is False
 
 
 # --------------------------------------------------------------------------- 2. negation

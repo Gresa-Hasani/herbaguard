@@ -20,11 +20,17 @@ Item kinds and labels (labels are what the model may cite):
   SUPP.AI model from a paper, with the paper's PMID, study flags and HerbaGuard's negation flag.
   Never a confirmed interaction and never part of the A–E classification. (``S#`` is taken by
   source statements, hence ``U``.)
+* ``P#`` — a manufacturer product-label record from NIH DSLD: product name, brand and identifiers,
+  the labelled amount of the matched herb ingredient and a "Precautions" statement, all verbatim.
+  Product-label information only: never clinical evidence, an interaction assertion, a safety
+  finding or an A–E class.
 
 Rules:
 
 * Text is never shortened. If the token budget is exceeded, whole items are left out (lowest
   priority first) and the number left out is reported as a limitation.
+* SUPP.AI mentions (``U#``) are considered last: they have no reserved slot, they are placed only
+  after every other kind of evidence, and at most one mention is included in a context.
 * Items are de-duplicated: a retrieved excerpt that repeats a statement already present is dropped.
 * Every item carries its source code, evidence type, location, URL and provenance from the
   database, and whether its source is registered as redistributable.
@@ -52,6 +58,7 @@ Kind = Literal[
     "observation",
     "hepatotoxicity",
     "mention",
+    "product_label",
 ]
 Role = Literal[
     "deterministic_classification",
@@ -61,6 +68,7 @@ Role = Literal[
     "experimental_evidence",
     "hepatotoxicity_evidence",
     "supplementary_mention",
+    "product_label_information",
 ]
 
 
@@ -364,12 +372,39 @@ def fact_item(text: str, *, source_code: str | None = None, priority: int = 40) 
                        qualifiers=["HerbaGuard catalogue information"], priority=priority)  # fmt: skip
 
 
+PRODUCT_LABEL_QUALIFIERS = (
+    "NIH DSLD product-label information: a manufacturer's label statement, NOT clinical evidence, "
+    "NOT a study and NOT a HerbaGuard finding",
+    "a label is not evidence of an interaction, efficacy or safety; a product listing or a missing "
+    "listing says nothing about whether the herb or product is safe, effective or interacts with a "
+    "medicine",
+    "label wording may be marketing or precautionary text; report a precaution only as the "
+    "manufacturer's wording, never as HerbaGuard's warning or advice",
+    "NIH DSLD licence not verified: local models only, never sent to cloud models",
+)
+
+
+def product_label_item(
+    *, text: str, title: str | None, location: str, url: str | None, external_id: str | None,
+    provenance: list[ProvenanceOut], extra_qualifiers: Iterable[str] = (), priority: int = 55,
+) -> ContextItem:  # fmt: skip
+    """A manufacturer product-label record from NIH DSLD. It is product information, never clinical
+    evidence, and it never feeds the A–E classification."""
+    return ContextItem(
+        label="", kind="product_label", role="product_label_information", text=text,
+        source_code="nih_dsld", external_id=external_id, title=title, location=location, url=url,
+        qualifiers=[*PRODUCT_LABEL_QUALIFIERS, *extra_qualifiers], provenance=provenance,
+        redistributable=False, priority=priority,
+    )  # fmt: skip
+
+
 # --------------------------------------------------------------------------- assembly
 
 _PREFIX: dict[Kind, str] = {
     "observation": "X",
     "hepatotoxicity": "H",
     "mention": "U",
+    "product_label": "P",
     "classification": "C",
     "statement": "S",
     "mechanism": "M",
@@ -382,9 +417,11 @@ def _normalise(text: str) -> str:
     return " ".join(text.lower().split())
 
 
-# SUPP.AI mentions (U#) have no reserved slot: they rank last (priority 60+) and only fill room
-# that stronger evidence leaves, so they can never displace it.
+# Reserved slots for evidence from external datasets. SUPP.AI mentions are deliberately absent.
 RESERVED_SLOTS: dict[str, int] = {"observation": 2, "hepatotoxicity": 2}
+# At most one SUPP.AI mention reaches an assembled context, across all herb–drug pairs. It is only
+# placed in capacity that every other item leaves free, so it can never displace or replace evidence.
+MENTION_LIMIT = 1
 
 
 def assemble(
@@ -401,7 +438,11 @@ def assemble(
     ``reserved`` (default: two slots for experimental records) is filled first, in priority order,
     so records of an external dataset are not crowded out by retrieved passages; the reserved
     items count against ``max_items`` and the token budget like any other item. Text is never
-    shortened: an item that does not fit is left out whole."""
+    shortened: an item that does not fit is left out whole.
+
+    Supplementary mentions (``mention``, SUPP.AI ``U#``) are not part of those passes: they are
+    considered only after every other kind of item has been chosen, and at most ``MENTION_LIMIT``
+    of them is included, from capacity that nothing else needs."""
     reserved = RESERVED_SLOTS if reserved is None else reserved
     ordered = sorted(items, key=lambda i: i.priority)
     excluded = 0
@@ -440,9 +481,13 @@ def assemble(
         if item.kind != "classification":
             evidence_count += 1
 
+    # Supplementary mentions wait until every other kind has been placed (pass 3).
+    primary = [(index, item) for index, item in enumerate(eligible) if item.kind != "mention"]
+    mentions = [(index, item) for index, item in enumerate(eligible) if item.kind == "mention"]
+
     # pass 1: classifications (always) and the reserved kinds, up to their slot count
     used = dict.fromkeys(reserved, 0)
-    for index, item in enumerate(eligible):
+    for index, item in primary:
         if item.kind == "classification":
             take(index, item)
         elif (
@@ -455,13 +500,29 @@ def assemble(
             used[item.kind] += 1
             take(index, item)
     # pass 2: everything else in priority order
-    for index, item in enumerate(eligible):
+    for index, item in primary:
         if index in kept or duplicate(item):
             continue
         if evidence_count >= max_items or item.tokens > budget:
             omitted += 1
             continue
         take(index, item)
+    # pass 3: at most one supplementary mention, in its own ranked order, and only from capacity
+    # that nothing stronger needs. A mention never evicts, replaces or reorders anything chosen
+    # above. One that does not fit is left out whole and counted like any other item; candidates
+    # beyond MENTION_LIMIT are excluded by that policy, not by the context limit, so they are not
+    # reported as omissions.
+    included = 0
+    for index, item in mentions:
+        if included >= MENTION_LIMIT:
+            break
+        if duplicate(item):
+            continue
+        if evidence_count >= max_items or item.tokens > budget:
+            omitted += 1
+            continue
+        take(index, item)
+        included += 1
 
     chosen = [item for index, item in enumerate(eligible) if index in kept]
     counters: dict[str, int] = {}

@@ -281,6 +281,68 @@ _HEDGED_GRAPH = re.compile(
 )
 
 
+# --- NIH DSLD product-label information (P3, 2026-11-07) ------------------------------------------
+# A manufacturer's label is not clinical evidence. A paragraph supported only by P# items may report
+# what the label says (attributed to the label), but may never draw an interaction, safety, efficacy,
+# contraindication or dosing conclusion from it, and may never use it to establish a class.
+_LABEL_EFFICACY = re.compile(
+    r"\b(?:treats?|cures?|heals?|prevents?|effective|efficacy|clinically proven|proven to|"
+    r"supports? (?:immune|health|wellness)|improves? (?:health|immunity))\b",
+    re.I,
+)
+_LABEL_DOSE_ADVICE = re.compile(
+    r"\b(?:take|use|give|consume|administer)\s+\d+(?:[.,]\d+)?\s?(?:mg|g|mcg|µg|ug|ml|iu|units?)\b",
+    re.I,
+)
+_LABEL_ATTRIBUTED = re.compile(r"\b(?:label|dsld|product information)\b", re.I)
+
+
+def product_label_issue(paragraph: str, cited: list[ContextItem]) -> tuple[str, str] | None:
+    """(rule, message) when a paragraph draws a clinical, interaction, safety, efficacy or dosing
+    conclusion from NIH DSLD product-label items only; None otherwise. Wording attributed to the
+    label itself ("the label states …") reports the source and is not a HerbaGuard conclusion."""
+    evidence = [i for i in cited if i.kind not in ("classification", "fact")]
+    labels = [i for i in cited if i.kind == "product_label"]
+    if not labels or len(labels) != len(evidence):
+        return None
+    for sentence in _sentences(paragraph):
+        attributed = bool(_LABEL_ATTRIBUTED.search(sentence)) and (
+            bool(_ATTRIBUTION_VERB.search(sentence)) or "according to" in sentence.lower()
+        )
+        if attributed:
+            continue
+        for pattern, negation in (
+            (_CONFIRMED, _CONFIRMED_NEGATED),
+            (_NO_INTERACTION, _META_NEGATED),
+            (_SAFE, _NEGATION),
+            (_CLINICAL_CLAIM, _NEGATION),
+        ):
+            for match in pattern.finditer(sentence):
+                if negation is not None and negation.search(sentence[: match.start()]):
+                    continue
+                return (
+                    "product_label_as_clinical",
+                    f"Draws '{match.group(0)}' from NIH DSLD product-label information only; a "
+                    "manufacturer's label is not clinical evidence and never establishes an interaction, "
+                    "safety or a clinical conclusion.",
+                )
+        for match in _LABEL_EFFICACY.finditer(sentence):
+            if _NEGATION.search(sentence[: match.start()]):
+                continue
+            return (
+                "product_label_as_efficacy",
+                f"States '{match.group(0)}' from NIH DSLD product-label information only; a label's "
+                "marketing or precaution wording does not establish efficacy.",
+            )
+        if _LABEL_DOSE_ADVICE.search(sentence):
+            return (
+                "product_label_dosing",
+                "Gives a dose from NIH DSLD product-label information; a labelled amount is not a dose "
+                "recommendation.",
+            )
+    return None
+
+
 # --- limitation statements (corrected 2026-11-07) -------------------------------------------------
 # A limitation may *deny or limit* a safety conclusion ("The absence of reported interactions does not
 # mean the combination is safe.") but must never assert one. The safety wording is checked within its
@@ -707,6 +769,9 @@ def validate(
             if letter not in expected_classes:
                 result.issues.append(Issue("classification_conflict", "critical",
                     f"The answer states class {letter}; HerbaGuard computed {', '.join(sorted(expected_classes)) or 'no class'}.", index))  # fmt: skip
+        if (label := product_label_issue(para.text, [items[c] for c in valid])) is not None:
+            result.issues.append(Issue(label[0], "critical", label[1], index))
+            continue
         if (liver := hepatotoxicity_issue(para.text, cited_text)) is not None:
             result.issues.append(Issue(liver[0], "critical", liver[1], index))
         if (mention := mention_issue(para.text, [items[c] for c in valid])) is not None:

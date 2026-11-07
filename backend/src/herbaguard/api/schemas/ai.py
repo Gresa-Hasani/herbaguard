@@ -60,6 +60,7 @@ class CitationOut(BaseModel):
         "observation",
         "hepatotoxicity",
         "mention",
+        "product_label",
     ]
     role: Literal[
         "deterministic_classification",
@@ -69,6 +70,7 @@ class CitationOut(BaseModel):
         "experimental_evidence",
         "hepatotoxicity_evidence",
         "supplementary_mention",
+        "product_label_information",
     ]
     evidence_item_id: str | None
     external_id: str | None

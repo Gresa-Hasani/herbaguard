@@ -22,6 +22,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
+from herbaguard.ai import service
 from herbaguard.ai.context import ContextItem, mention_item
 from herbaguard.ai.mentions import study_type
 from herbaguard.ai.providers.base import GenerationRequest
@@ -126,23 +127,18 @@ def test_eligible_mentions_are_labelled_with_study_type_negation_and_provenance(
     body = ask(client, QUESTION)
     request = provider.requests[0]
     found = mentions(request)
-    assert len(found) == 3
-    text = "\n".join(found.values())
-    # retracted paper excluded (only the exclusion count is mentioned)
-    assert "Retracted synthetic report" not in text and "900002" not in text
-    clinical, animal, unknown = (
-        found[find(request, p)] for p in ("PMID 900001", "PMID 900003", "PMID 900004")
-    )
+    # At most one mention is included in a context (context.MENTION_LIMIT): the pair's highest-ranked
+    # eligible mention, the clinical-study paper. The labels of the other study types are covered by
+    # test_supp_ai_audit_fixes.test_every_mention_keeps_its_safety_labels.
+    assert len(found) == 1
+    clinical = next(iter(found.values()))
+    assert "PMID 900001" in clinical
     assert (
         "study type: clinical study" in clinical
         and "Negation applying to this pair: none detected" in clinical
     )
-    assert "study type: animal study (SUPP.AI paper flag): NOT human clinical evidence" in animal
-    assert "study type: not stated by SUPP.AI" in unknown
-    assert (
-        "Negation applying to this pair: 'did not'" in unknown
-        and "negation applies to this herb-drug pair ('did not')" in unknown
-    )
+    # retracted paper excluded (only the exclusion count is mentioned)
+    assert "Retracted synthetic report" not in clinical and "900002" not in clinical
     for block in found.values():
         assert "SUPP.AI machine-extracted supplementary interaction mention" in block
         assert "NOT a confirmed interaction" in block and "never sent to cloud models" in block
@@ -230,25 +226,57 @@ def test_supp_ai_mentions_never_reach_cloud_models() -> None:
 # --------------------------------------------------------------------------- validation
 
 
-@pytest.mark.parametrize(("needle", "text", "rule"), [
+def _forced_mention(
+    monkeypatch: pytest.MonkeyPatch, *, needle: str, study_type_key: str, cue: str | None = None
+) -> None:
+    """Supply one SUPP.AI item for the request instead of reading SUPP.AI from the database.
+
+    Only the pair's highest-ranked eligible mention reaches a context now, so the validator is
+    exercised here with a non-clinical or negated mention supplied directly; the ingested fixture
+    data (study types, negation labels, provenance) is covered by the label test above.
+    """
+    pmid = needle.split()[1]
+
+    def build(*args: Any, **kwargs: Any) -> list[ContextItem]:
+        return [
+            mention_item(
+                text=f'SUPP.AI machine-extracted mention: "Synthetic sentence." Paper: Synthetic study; '
+                f"PMID {pmid}.",
+                study_type=study_type_key, negation_cue=cue, external_id=f"PMID:{pmid}",
+                url=f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/", title="Synthetic study", location="l",
+                provenance=[], priority=service.MENTION_PRIORITY,
+            )
+        ]  # fmt: skip
+
+    monkeypatch.setattr(service, "_supplementary_mentions", build)
+
+
+@pytest.mark.parametrize(("needle", "text", "rule", "study_type_key", "cue"), [
     ("PMID 900001", "St John's wort interacts with warfarin; this is a confirmed interaction.",
-     "supp_ai_mention_as_confirmed"),
+     "supp_ai_mention_as_confirmed", "clinical", None),
     ("PMID 900001", "It is established that St John's wort reduces the effect of warfarin.",
-     "supp_ai_mention_as_confirmed"),
-    ("PMID 900003", "This interaction is clinically significant in patients.", "supp_ai_mention_as_confirmed"),
-    ("PMID 900004", "St John's wort alters warfarin pharmacokinetics.", "negated_mention_as_positive"),
+     "supp_ai_mention_as_confirmed", "clinical", None),
+    ("PMID 900003", "This interaction is clinically significant in patients.", "supp_ai_mention_as_confirmed",
+     "animal", None),
+    ("PMID 900004", "St John's wort alters warfarin pharmacokinetics.", "negated_mention_as_positive",
+     "unknown", "did not"),
 ])  # fmt: skip
 def test_unsupported_claims_from_mentions_are_rejected(
-    api: TestClient, imported: None, needle: str, text: str, rule: str
-) -> None:
+    api: TestClient, imported: None, monkeypatch: pytest.MonkeyPatch, needle: str, text: str, rule: str,
+    study_type_key: str, cue: str | None,
+) -> None:  # fmt: skip
+    _forced_mention(monkeypatch, needle=needle, study_type_key=study_type_key, cue=cue)
     client, _ = _client(api, lambda r: answer([(text, [find(r, needle)])]))
     body = ask(client, QUESTION)
     assert rule in {i["rule"] for i in body["validation"]}
     assert all(text not in p["text"] for p in body["paragraphs"])
 
 
-def test_negated_mention_reported_as_negative_is_accepted(api: TestClient, imported: None) -> None:
+def test_negated_mention_reported_as_negative_is_accepted(
+    api: TestClient, imported: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     text = "One machine-extracted SUPP.AI mention, from a paper without a stated study type, says St John's wort did not alter warfarin pharmacokinetics."
+    _forced_mention(monkeypatch, needle="PMID 900004", study_type_key="unknown", cue="did not")
     client, _ = _client(api, lambda r: answer([(text, [find(r, "PMID 900004")])]))
     body = ask(client, QUESTION)
     assert not {i["rule"] for i in body["validation"]} & {
