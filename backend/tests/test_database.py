@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import Engine, inspect, select, text
+from sqlalchemy import Engine, func, inspect, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -25,6 +25,8 @@ from herbaguard.models import (
     EvidenceItem,
     HerbalSubstance,
     InteractionAssertion,
+    RetrievalSegment,
+    SegmentEmbedding,
     Source,
     SourceRecord,
     Target,
@@ -32,7 +34,6 @@ from herbaguard.models import (
     Taxon,
     TaxonName,
 )
-from herbaguard.models.evidence import EMBEDDING_DIMENSION
 
 pytestmark = pytest.mark.db
 
@@ -172,6 +173,8 @@ def test_source_record_is_idempotent_on_content_hash(db_session: Session) -> Non
 
 
 def test_chunk_full_text_and_vector_search(db_session: Session) -> None:
+    """Full-text search on chunks; vector search on the Phase 5 index (segment_embedding), where
+    two embedding models of different dimension coexist and are never compared with each other."""
     source = _source(db_session)
     item = EvidenceItem(
         source_code=source.code,
@@ -181,16 +184,12 @@ def test_chunk_full_text_and_vector_search(db_session: Session) -> None:
     )
     db_session.add(item)
     db_session.flush()
-    near = [1.0] + [0.0] * (EMBEDDING_DIMENSION - 1)
-    far = [0.0, 1.0] + [0.0] * (EMBEDDING_DIMENSION - 2)
     texts = [
-        ("Hyperici herba preparations induce CYP3A4.", near),
-        ("Unrelated text about storage conditions.", far),
+        "Hyperici herba preparations induce CYP3A4.",
+        "Unrelated text about storage conditions.",
     ]
-    db_session.add_all(
-        Chunk(evidence_item_id=item.id, ordinal=i, text=body, embedding=vector)
-        for i, (body, vector) in enumerate(texts)
-    )
+    chunks = [Chunk(evidence_item_id=item.id, ordinal=i, text=body) for i, body in enumerate(texts)]
+    db_session.add_all(chunks)
     db_session.flush()
 
     keyword_hit = db_session.scalars(
@@ -200,10 +199,45 @@ def test_chunk_full_text_and_vector_search(db_session: Session) -> None:
     ).all()
     assert keyword_hit == [0]
 
-    nearest = db_session.scalars(
-        select(Chunk.ordinal).order_by(Chunk.embedding.cosine_distance(near)).limit(1)  # type: ignore[union-attr]
-    ).one()
-    assert nearest == 0
+    vectors = {
+        "model-384": ([1.0] + [0.0] * 383, [0.0, 1.0] + [0.0] * 382),
+        "model-1024": ([0.0, 1.0] + [0.0] * 1022, [1.0] + [0.0] * 1023),  # opposite ranking
+    }
+    for chunk in chunks:
+        segment = RetrievalSegment(
+            chunk_id=chunk.id, evidence_item_id=item.id, ordinal=0, char_start=0,
+            char_end=len(chunk.text), strategy="test", strategy_version="1",
+            chunk_text_sha256="0" * 64, text_sha256="0" * 64,
+            search_vector=func.to_tsvector("english", chunk.text),
+        )  # fmt: skip
+        db_session.add(segment)
+        db_session.flush()
+        for model, (near, far) in vectors.items():
+            db_session.add(SegmentEmbedding(
+                segment_id=segment.id, model=model, model_version="v1", provider="test",
+                dimension=len(near), text_sha256="0" * 64, embedding=near if chunk.ordinal == 0 else far,
+            ))  # fmt: skip
+    db_session.flush()
+
+    def nearest(model: str, query: list[float]) -> int:
+        dim = len(query)
+        return db_session.execute(
+            text(
+                "SELECT c.ordinal FROM segment_embedding e "  # noqa: S608 - dim is an int
+                "JOIN retrieval_segment s ON s.id = e.segment_id JOIN chunk c ON c.id = s.chunk_id "
+                "WHERE e.model = :model AND e.dimension = :dim "
+                f"ORDER BY e.embedding::vector({dim}) <=> CAST(:q AS vector({dim})) LIMIT 1"
+            ),
+            {"model": model, "dim": dim, "q": str(query)},
+        ).scalar_one()
+
+    assert nearest("model-384", vectors["model-384"][0]) == 0
+    assert nearest("model-1024", vectors["model-1024"][0]) == 0
+    db_session.add(SegmentEmbedding(segment_id=segment.id, model="bad", model_version="v1",
+                                    provider="test", dimension=3, text_sha256="0" * 64,
+                                    embedding=[1.0, 0.0]))  # fmt: skip
+    with pytest.raises(IntegrityError, match="dimension_matches_vector"):
+        db_session.flush()
 
 
 def test_migration_downgrade_and_upgrade_round_trip(

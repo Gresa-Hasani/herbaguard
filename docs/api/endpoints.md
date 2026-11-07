@@ -90,3 +90,7 @@ The interaction check (`POST /api/v1/interactions/check`) returns `mechanism_pat
 | `GET /api/v1/plants/{wfo_id}/mechanism-pairs` | Drugs sharing an enzyme/transporter with the herb, each with its mechanism finding and paths (`qualifying_only`, `limit`, `offset`) |
 
 `POST /api/v1/mechanisms/paths` and every `POST /api/v1/interactions/check` result now carry an explicit mechanism finding — see [mechanism-paths.md](mechanism-paths.md) §3.
+
+## AI (Phase 5)
+
+`POST /api/v1/ai/ask`, `POST /api/v1/ai/retrieve`, `GET /api/v1/ai/providers`, `GET /api/v1/ai/health` — see [ai-endpoints.md](ai-endpoints.md).

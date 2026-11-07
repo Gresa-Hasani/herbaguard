@@ -23,6 +23,10 @@ ingest_app = typer.Typer(
 )
 app.add_typer(ingest_app, name="ingest")
 
+from herbaguard.ai.cli import ai_app  # noqa: E402 - registered after the ingest group
+
+app.add_typer(ai_app, name="ai")
+
 HerbOption = Annotated[
     list[str] | None, typer.Option("--herb", help="Limit to curated herb key(s).")
 ]
@@ -154,6 +158,25 @@ def ingest_mechanisms(
         lambda ctx: mechanisms.run_fda(ctx, fda_html_file),
         {"html_file": fda_html_file.name if fda_html_file else None},
     )
+
+
+@ingest_app.command("ddid")
+def ingest_ddid(
+    directory: Annotated[
+        Path | None,
+        typer.Option(
+            help="Folder with the five DDID CSV files (default: <raw data dir>/ddid).",
+            exists=True,
+            file_okay=False,
+        ),
+    ] = None,
+) -> None:
+    """DDID experimental herb/food–drug records, herbs, drugs, natural products and TTD targets
+    (local CSV files; nothing is downloaded). Run after taxonomy and labels/rxnav."""
+    from herbaguard.ingestion.pipelines import ddid
+
+    folder = directory or Path(get_settings().raw_data_dir) / "ddid"
+    _run("ddid", lambda ctx: ddid.run(ctx, folder), {"directory": str(folder)})
 
 
 @ingest_app.command("all")

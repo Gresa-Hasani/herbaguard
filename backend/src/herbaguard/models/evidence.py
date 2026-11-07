@@ -6,7 +6,6 @@ import uuid
 from datetime import date, datetime
 from typing import Any
 
-from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     CheckConstraint,
     Computed,
@@ -29,10 +28,6 @@ from herbaguard.domain.enums import (
     UseCategory,
 )
 from herbaguard.models.base import Base, created_at_column, enum_check, updated_at_column, uuid_pk
-
-# Dimension of the embedding model planned for Phase 5 (bge-small-en-v1.5 = 384).
-# Changing the model to a different dimension requires a migration.
-EMBEDDING_DIMENSION = 384
 
 
 class EvidenceItem(Base):
@@ -143,22 +138,18 @@ class InteractionAssertionEvidence(Base):
 
 
 class Chunk(Base):
-    """A retrieval unit for the AI assistant (hybrid full-text + vector search).
+    """Stored source text of an evidence item, in source order (canonical text for citations).
 
     ``text`` is stored only when the source licence allows local storage; the database is never
-    committed to Git.
+    committed to Git. Phase 5 retrieval does not search chunks directly: it searches
+    ``retrieval_segment`` rows cut from them (see ``herbaguard.models.retrieval``); embeddings live
+    in ``segment_embedding`` (migration 0005 removed the unused fixed-size ``embedding`` column).
     """
 
     __tablename__ = "chunk"
     __table_args__ = (
         UniqueConstraint("evidence_item_id", "ordinal"),
         Index("ix_chunk_search_vector", "search_vector", postgresql_using="gin"),
-        Index(
-            "ix_chunk_embedding_hnsw",
-            "embedding",
-            postgresql_using="hnsw",
-            postgresql_ops={"embedding": "vector_cosine_ops"},
-        ),
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -169,8 +160,6 @@ class Chunk(Base):
     section: Mapped[str | None] = mapped_column(String(128))
     text: Mapped[str] = mapped_column(Text)
     metadata_: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, default=dict)
-    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIMENSION))
-    embedding_model: Mapped[str | None] = mapped_column(String(128))
     search_vector: Mapped[str] = mapped_column(
         TSVECTOR, Computed("to_tsvector('english', coalesce(text, ''))", persisted=True)
     )

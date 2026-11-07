@@ -1,0 +1,213 @@
+# HerbaGuard RAG evaluation set — BASELINE v1 (Phase 5, 2026-11-03)
+#
+# Authored by the HerbaGuard team. This is a baseline for the initial corpus, not a final benchmark:
+# it must be re-run (and extended) after the dataset expansion. See docs/ai/evaluation.md.
+#
+# Relevance is declared with RULES, resolved against the database at evaluation time, so the
+# relevant set grows automatically when new evidence is linked to the same herbs/drugs:
+#   assertion_pair: {herb, drug}      evidence behind ACTIVE interaction statements for the herb and the
+#                                     drug or any ATC class containing it (the classification's inputs)
+#   herb_sections: {herb, sections, sources?}   evidence of the herb whose metadata.section is listed
+#   herb_source:   {herb, source, external_id_contains?}
+#   herb_text:     {herb, pattern, sources?, evidence_types?}   herb-linked evidence whose stored text
+#                                     matches the regular expression (case-insensitive)
+#   text:          {pattern, sources?}   any current evidence whose text matches (unscoped)
+#   external_ids:  [...]              explicit identifiers
+# A question is relevant-to-any-of the union of its rules. ``expect_no_evidence: true`` marks
+# questions about entities HerbaGuard does not cover (excluded from recall/MRR; used to check that
+# the generator reports insufficient evidence).
+#
+# Known bias: text rules favour lexical retrieval (they match words). Structural rules
+# (assertion_pair, herb_sections, herb_source) are used wherever possible to limit this.
+version: 1
+label: baseline-v1
+questions:
+  # --- plants, synonyms, common names --------------------------------------------------------
+  - id: syn-cimicifuga-interactions
+    category: botanical_synonym
+    question: What does the EU monograph say about interactions of Cimicifuga racemosa?
+    relevant:
+      herb_sections: {herb: Cimicifugae rhizoma, sections: ["4.5"], sources: [ema_hmpc]}
+  - id: syn-hypericum-contraindications
+    category: botanical_synonym
+    question: What are the contraindications of Hypericum perforatum preparations?
+    relevant:
+      herb_sections: {herb: Hyperici herba, sections: ["4.3"], sources: [ema_hmpc]}
+  - id: common-valerian-warnings
+    category: plant_safety
+    question: Are there warnings or precautions for valerian root?
+    relevant:
+      herb_sections: {herb: Valerianae radix, sections: ["4.4"], sources: [ema_hmpc]}
+      herb_source: {herb: Valerianae radix, source: nccih, external_id_contains: safety}
+  - id: ginger-pregnancy
+    category: plant_safety
+    question: Can ginger be used during pregnancy and breastfeeding?
+    relevant:
+      herb_sections: {herb: Zingiberis rhizoma, sections: ["4.6"], sources: [ema_hmpc]}
+  - id: ginger-indications
+    category: ema_monograph
+    question: What are the indications of ginger in the EU herbal monograph?
+    relevant:
+      herb_sections: {herb: Zingiberis rhizoma, sections: ["4.1"], sources: [ema_hmpc]}
+  - id: black-cohosh-liver
+    category: plant_safety
+    question: Is black cohosh associated with liver problems?
+    relevant:
+      herb_text: {herb: Cimicifugae rhizoma, pattern: "liver|hepat"}
+  # --- herb–drug interactions -------------------------------------------------------------------
+  - id: sjw-warfarin
+    category: herb_drug_interaction
+    question: Does St John's wort interact with warfarin?
+    relevant:
+      assertion_pair: {herb: Hyperici herba, drug: warfarin}
+  - id: sjw-cyclosporine
+    category: herb_drug_interaction
+    question: Can St John's wort be taken together with cyclosporine?
+    relevant:
+      assertion_pair: {herb: Hyperici herba, drug: cyclosporine}
+  - id: sjw-contraceptives
+    category: fda_label
+    question: Does St John's wort reduce the effect of hormonal contraceptives?
+    relevant:
+      herb_text: {herb: Hyperici herba, pattern: "contracepti"}
+  - id: ginkgo-warfarin
+    category: herb_drug_interaction
+    question: Is there an interaction between ginkgo and warfarin?
+    relevant:
+      assertion_pair: {herb: Ginkgo folium, drug: warfarin}
+  - id: garlic-anticoagulants
+    category: herb_drug_interaction
+    question: Does garlic increase bleeding risk with anticoagulants?
+    relevant:
+      herb_text: {herb: Allii sativi bulbus, pattern: "anticoagul|warfarin|bleed|platelet"}
+  - id: turmeric-anticoagulants
+    category: missing_evidence
+    # The stored turmeric sources do not mention anticoagulants (EMA 4.5: "None reported"; the NCCIH
+    # safety section covers general adverse effects). Relevant = what HerbaGuard does hold.
+    question: Does turmeric interact with anticoagulant medicines?
+    relevant:
+      herb_sections: {herb: Curcumae longae rhizoma, sections: ["4.5"], sources: [ema_hmpc]}
+      herb_source: {herb: Curcumae longae rhizoma, source: nccih, external_id_contains: safety}
+  - id: senna-digoxin
+    category: herb_drug_interaction
+    question: Can senna affect digoxin or cardiac glycosides?
+    relevant:
+      herb_text: {herb: Sennae folium, pattern: "cardiac glycoside|digoxin|hypokal"}
+  # --- mechanisms: enzymes, transporters, constituents ----------------------------------------
+  - id: sjw-cyp3a4
+    category: cyp_enzyme
+    question: How does St John's wort affect CYP3A4?
+    relevant:
+      herb_text: {herb: Hyperici herba, pattern: "cyp ?3a4|cytochrome p450 3a4"}
+  - id: ginkgo-pgp
+    category: transporter
+    question: Does ginkgo inhibit P-glycoprotein?
+    relevant:
+      herb_text: {herb: Ginkgo folium, pattern: "p-glycoprotein|p-gp|pgp"}
+  - id: liquorice-cyp3a4
+    category: cyp_enzyme
+    question: Does liquorice root affect CYP3A4 metabolism?
+    relevant:
+      herb_text: {herb: Liquiritiae radix, pattern: "cyp ?3a4|midazolam"}
+  - id: curcumin-bcrp
+    category: transporter
+    question: Is curcumin an inhibitor of BCRP?
+    relevant:
+      text: {pattern: "curcumin[^.]{0,200}(bcrp|breast cancer resistance)|(bcrp|breast cancer resistance)[^.]{0,200}curcumin"}
+      external_ids: ["fda-cyp-transporter-examples#table-1"]
+  - id: hyperforin-constituent
+    category: active_constituent
+    question: What role does hyperforin play in St John's wort interactions?
+    relevant:
+      herb_text: {herb: Hyperici herba, pattern: "hyperforin"}
+  - id: cyp3a-sensitive-substrates
+    category: cyp_enzyme
+    question: Which drugs are sensitive CYP3A substrates according to the FDA?
+    relevant:
+      external_ids: ["fda-cyp-transporter-examples#table-1"]
+  # --- source-specific lookups ----------------------------------------------------------------
+  - id: nccih-green-tea-safety
+    category: nccih
+    question: What does NCCIH say about the safety of green tea?
+    relevant:
+      herb_source: {herb: Camelliae sinensis non fermentatum folium, source: nccih, external_id_contains: safety}
+  - id: nccih-licorice-safety
+    category: nccih
+    question: What safety concerns does NCCIH describe for licorice root?
+    relevant:
+      herb_source: {herb: Liquiritiae radix, source: nccih, external_id_contains: safety}
+  - id: pubmed-saw-palmetto-prostate
+    category: pubmed
+    question: Clinical trials of saw palmetto for benign prostatic hyperplasia
+    relevant:
+      herb_text: {herb: Sabalis serrulatae fructus, pattern: "prostat|BPH|urinary", sources: [pubmed], evidence_types: [RCT, SR, CLIN]}
+  - id: pubmed-milk-thistle-liver
+    category: pubmed
+    question: Studies of milk thistle in liver disease
+    relevant:
+      herb_text: {herb: Silybi mariani fructus, pattern: "liver|hepat|cirrho", sources: [pubmed]}
+  - id: pubmed-echinacea-colds
+    category: pubmed
+    question: Does echinacea prevent or treat the common cold?
+    relevant:
+      herb_text: {herb: Echinaceae purpureae herba, pattern: "cold|respiratory|URTI", sources: [pubmed, nccih]}
+  # --- conflicting and missing evidence -------------------------------------------------------
+  - id: conflict-cranberry-warfarin
+    category: conflicting_evidence
+    question: Is the evidence about cranberry and warfarin conflicting?
+    relevant:
+      assertion_pair: {herb: Vaccinii macrocarpi fructus, drug: warfarin}
+      herb_source: {herb: Vaccinii macrocarpi fructus, source: nccih, external_id_contains: safety}
+  - id: conflict-echinacea-nimodipine
+    category: conflicting_evidence
+    question: Do sources agree on echinacea and nimodipine?
+    relevant:
+      assertion_pair: {herb: Echinaceae purpureae herba, drug: nimodipine}
+      herb_sections: {herb: Echinaceae purpureae herba, sections: ["4.5"], sources: [ema_hmpc]}
+  - id: missing-hawthorn-metformin
+    category: missing_evidence
+    question: Does hawthorn interact with metformin?
+    relevant:
+      herb_sections: {herb: Crataegi folium cum flore, sections: ["4.5"], sources: [ema_hmpc]}
+  - id: missing-saw-palmetto-metformin
+    category: missing_evidence
+    question: Does saw palmetto interact with metformin?
+    relevant:
+      herb_sections: {herb: Sabalis serrulatae fructus, sections: ["4.5"], sources: [ema_hmpc]}
+  - id: missing-unknown-herb
+    category: missing_evidence
+    question: Does Unobtainium officinale interact with warfarin?
+    expect_no_evidence: true
+  - id: missing-unknown-plant-general
+    category: missing_evidence
+    question: What is known about the medicinal plant Zzyzxia montana?
+    expect_no_evidence: true
+  # --- added after the coverage review (before the final 3-model comparison) -------------------
+  - id: brand-coumadin
+    category: drug_brand_name
+    # Brand name → RxNorm ingredient (warfarin) through a live RxNav lookup.
+    question: Does St John's wort affect Coumadin?
+    allow_remote_drug_lookup: true
+    relevant:
+      assertion_pair: {herb: Hyperici herba, drug: warfarin}
+  - id: drug-warfarin-enzymes
+    category: drug_information
+    question: Which enzymes is warfarin a substrate of?
+    relevant:
+      external_ids: ["fda-cyp-transporter-examples#table-1"]
+  - id: compare-valerian-sources
+    category: evidence_comparison
+    question: Compare what the EU monograph and NCCIH say about valerian safety
+    relevant:
+      herb_sections: {herb: Valerianae radix, sections: ["4.4", "4.8"], sources: [ema_hmpc]}
+      herb_source: {herb: Valerianae radix, source: nccih, external_id_contains: safety}
+  - id: ambiguous-lithium
+    category: ambiguous_entity
+    # "lithium" names two RxNorm ingredients (carbonate, citrate): HerbaGuard must ask, not guess.
+    question: Does St John's wort interact with lithium?
+    expect_ambiguous: true
+  - id: coverage-herbs
+    category: data_coverage
+    # Answered from catalogue facts, not retrieval.
+    question: Which herbs does HerbaGuard cover?
+    catalogue_question: true

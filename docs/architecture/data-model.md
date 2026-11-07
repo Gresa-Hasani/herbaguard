@@ -125,3 +125,14 @@ The downgrade refuses to run when rows use values introduced in 0003. Populated 
 | Change | Why |
 |---|---|
 | `target_modulation.hedge_wording` (nullable, ≤ 32 chars) | Keep the source's own uncertainty ("may inhibit") with the edge; shown with every effect and path |
+
+## 9. Changes in migration 0005 (Phase 5)
+
+| Change | Why |
+|---|---|
+| New `retrieval_segment` (chunk id, evidence item id, ordinal, character range, strategy + version, chunk-text and embedded-text SHA-256, full-text vector of title + segment) | Retrieval units cut from stored text without copying it; source-aware, versioned segmentation; stale detection |
+| New `segment_embedding` (segment id + model as key, model version, provider, dimension, text SHA-256, untyped `vector`, timestamp; CHECK `vector_dims = dimension`; partial HNSW index per model created by the indexer) | Model-independent embeddings; models never mixed; incremental re-embedding |
+| Dropped `chunk.embedding` (`vector(384)`), `chunk.embedding_model` and `ix_chunk_embedding_hnsw` | Never populated; replaced by the tables above (ADR-021). The downgrade refuses to run while segment embeddings exist |
+
+Source `herbaguard_ai_index` is registered for indexing runs. No table stores user questions or answers (ADR-024).
+

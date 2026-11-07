@@ -1,6 +1,6 @@
 # Architecture Overview
 
-**Status:** Foundation (Phase 1), ingestion (Phase 2) and core API (Phase 3) implemented. Modules marked *planned* do not exist yet.
+**Status:** Foundation (Phase 1), ingestion (Phase 2), core API (Phase 3), mechanism layer (Phase 4) and AI layer (Phase 5) implemented. Modules marked *planned* do not exist yet.
 
 HerbaGuard is a **modular monolith**: one Python package serves the API and runs the data pipeline, one React single-page app is the user interface, and one PostgreSQL database (with pgvector) stores everything. The reasons are recorded in [decisions.md](decisions.md).
 
@@ -40,7 +40,8 @@ backend/src/herbaguard/
 ├── ingestion/         Source registry, CLI; connectors/adapters/normalisers from Phase 2
 ├── repositories/      Data access (SQL only): plants, drugs, evidence, interactions
 ├── services/          Use cases: herb/drug resolution, evidence, coverage, interaction check
-└── ai/                (planned, Phase 5) retrieval, LLM client, citation validation
+└── ai/                Phase 5: providers, embeddings, retrieval index, hybrid retrieval, evidence assembly,
+                       generation, validation, evaluation (docs/ai/architecture.md)
 ```
 
 Dependency rules:

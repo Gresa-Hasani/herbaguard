@@ -45,6 +45,7 @@ Every error response — validation, not found, domain errors, unexpected failur
 | 404 | `not_found` | Unknown resource or route |
 | 409 | `ambiguous_entity` | A name matches several entities; `details.candidates` lists them so the client can ask the user |
 | 409 | `conflict` | State conflict |
+| 429 | `too_many_requests` | A bounded resource is busy (e.g. local model inference for `/ai/ask`) |
 | 422 | `validation_error` | Invalid parameters; `details` is a list of `{location, message, type}` |
 | 502 | `upstream_unavailable` | An external source failed during a live lookup |
 | 503 | `service_unavailable` | A dependency (e.g. the database) is down |
@@ -91,3 +92,5 @@ Additions to the conventions made in Phase 3:
 - Every scientific object carries `provenance: [{source_code, source_name, licence, licence_status, retrieved_url, retrieved_at, source_version, extraction_method, location, excerpt}]`.
 - Evidence types are returned as `{code, label, basis, quality_assessed: false, note}`; HerbaGuard never presents a publication type as a quality score.
 - Interaction results carry both `interaction_class` (A–E) and a finer `finding` (documented interaction / precaution, potential, uncertain, label subject not confirmed, mentioned without interaction wording, no interaction reported, no evidence found, insufficient information).
+
+Phase 5: AI endpoints `/api/v1/ai/ask`, `/ai/retrieve`, `/ai/providers`, `/ai/health` — see [../api/ai-endpoints.md](../api/ai-endpoints.md). AI answers always carry the deterministic classification, citations built from stored provenance, and the provider/model that produced them.

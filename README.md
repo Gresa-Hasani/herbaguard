@@ -21,12 +21,12 @@ HerbaGuard combines herb-side regulatory monographs (EMA HMPC), drug-side labels
 | 2 | Data ingestion and normalisation | Done — see [`docs/data/`](docs/data/) |
 | 3 | Backend and core APIs | Done — see [`docs/api/`](docs/api/) |
 | 4 | Knowledge graph and mechanism integration | Done — see [`docs/api/mechanism-paths.md`](docs/api/mechanism-paths.md), [`docs/data/mechanism-sources.md`](docs/data/mechanism-sources.md) |
-| 5 | AI evidence assistant | Not started |
+| 5 | AI, hybrid RAG and multi-provider LLM | Done — see [`docs/ai/`](docs/ai/) |
 | 6 | Frontend modules | Not started — module pages are placeholders |
 | 7 | Integration and validation | Not started |
 | 8 | Submission | Not started |
 
-**Implemented now:** project structure; database schema with provenance tables (migrations 0001–0003); FastAPI service (health, readiness, metadata, standard error format, request IDs, structured logging); React application shell with the persistent disclaimer; Docker Compose stack; tests and CI; and a **data pipeline** that ingests the 16 curated herbs from WFO/WCVP/NCBI/GBIF/Wikidata, EMA herbal monographs, NCCIH fact sheets, openFDA drug labels, RxNorm/ATC and PubMed with full provenance and validation. The **REST API** (Phase 3) serves plants, drugs, evidence, sources/coverage and a deterministic herb–drug **interaction check (classes A–E)** with full provenance — see [`docs/api/`](docs/api/). **Phase 4** adds the mechanism layer: 18 enzymes/transporters, drug roles from FDA's CYP/transporter table, herb effects from EU monographs, graph and path endpoints, and conservative mechanism-based class B. The web app does not use the API yet (Phase 6).
+**Implemented now:** project structure; database schema with provenance tables (migrations 0001–0005); FastAPI service (health, readiness, metadata, standard error format, request IDs, structured logging); React application shell with the persistent disclaimer; Docker Compose stack; tests and CI; and a **data pipeline** that ingests the 16 curated herbs from WFO/WCVP/NCBI/GBIF/Wikidata, EMA herbal monographs, NCCIH fact sheets, openFDA drug labels, RxNorm/ATC and PubMed with full provenance and validation. The **REST API** (Phase 3) serves plants, drugs, evidence, sources/coverage and a deterministic herb–drug **interaction check (classes A–E)** with full provenance — see [`docs/api/`](docs/api/). **Phase 4** adds the mechanism layer: 18 enzymes/transporters, drug roles from FDA's CYP/transporter table, herb effects from EU monographs, graph and path endpoints, and conservative mechanism-based class B. **Phase 5** adds an evidence-grounded AI layer: hybrid retrieval (PostgreSQL full-text + pgvector, RRF) over a model-independent index, a provider-independent LLM interface (local Ollama/Qwen3-4B by default; Anthropic/OpenAI optional), cited answers validated in code, and the deterministic A–E class always taken from the interaction service — see [`docs/ai/`](docs/ai/). The web app does not use the API yet (Phase 6).
 
 ## Quick start (Docker)
 
@@ -58,6 +58,21 @@ herbaguard report          # counts and data-quality issues
 ```
 
 Details: [`docs/data/pipeline.md`](docs/data/pipeline.md) · sources and licences: [`docs/data/sources.md`](docs/data/sources.md) · latest results: [`docs/data/ingestion-results.md`](docs/data/ingestion-results.md).
+
+### AI layer (Phase 5)
+
+Needs [Ollama](https://ollama.com) running locally (no API key):
+
+```bash
+ollama pull qwen3:4b          # answer model (~2.5 GB); any Qwen3-4B tag via HERBAGUARD_LLM_MODEL
+ollama pull nomic-embed-text  # embedding model (benchmark choice)
+cd backend
+herbaguard ai index           # incremental: segments + embeddings for new/changed evidence
+herbaguard ai status
+herbaguard ai evaluate-retrieval   # keyword vs semantic vs hybrid on data/evaluation/
+```
+
+Then `POST /api/v1/ai/ask` with `{"question": "Does St John's wort interact with warfarin?"}`; `POST /api/v1/ai/retrieve` returns evidence without a model. Providers (Ollama, Anthropic, OpenAI, extractive), configuration and limits: [`docs/ai/`](docs/ai/).
 
 ## Local development
 

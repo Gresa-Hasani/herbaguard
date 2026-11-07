@@ -12,6 +12,7 @@ from herbaguard.models.evidence import (
     InteractionAssertion,
     InteractionAssertionEvidence,
 )
+from herbaguard.models.external import ExperimentalObservation, ExternalEntity, ExternalRelation
 from herbaguard.models.pharmacology import (
     Constituent,
     Drug,
@@ -29,6 +30,7 @@ from herbaguard.models.provenance import (
     Source,
     SourceRecord,
 )
+from herbaguard.models.retrieval import RetrievalSegment, SegmentEmbedding
 from herbaguard.models.taxonomy import HerbalSubstance, Taxon, TaxonName
 
 __all__ = [
@@ -41,6 +43,9 @@ __all__ = [
     "DrugClassMembership",
     "DrugTargetRoleLink",
     "EvidenceItem",
+    "ExperimentalObservation",
+    "ExternalEntity",
+    "ExternalRelation",
     "HerbalSubstance",
     "HerbalSubstanceConstituent",
     "HerbalSubstanceEvidence",
@@ -49,6 +54,8 @@ __all__ = [
     "InteractionAssertion",
     "InteractionAssertionEvidence",
     "Provenance",
+    "RetrievalSegment",
+    "SegmentEmbedding",
     "Source",
     "SourceRecord",
     "Target",

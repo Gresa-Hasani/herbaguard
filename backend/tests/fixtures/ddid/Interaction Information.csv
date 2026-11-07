@@ -1,0 +1,8 @@
+Drug_ID,Drug_Name,Brand_Name,Drug_Dose,Dosage_Form,Food_Herb_ID,Food_Herb_Name,Type,Component,Dose,Note,Time,Result,Experimental_Species,Experimental_Design,Experimental_Individuals_Number,Test_Method,Test_Sample,Effect,Potential_Target,Target_ID,Conclusion,PMID,Reference,DOI,Relationship_classification
+D00001,Warfarin,NA,NA,NA,H00100,Hypericum perforatum,Herb,NA,NA,NA,NA,AUC of S-warfarin decreased,Homo Sapiens,Randomized cross-over study,12,NA,NA,Negative,CYP2C9,P11712,St John's wort induces warfarin clearance,15333627,Effect of St John's wort on warfarin pharmacokinetics,10.1111/j.1365-2125.2004.02095.x,HFDI
+D00001,Warfarin,NA,NA,NA,H00100,Hypericum perforatum,Herb,NA,NA,NA,NA,Clearance increased,Rat,NA,NA,NA,NA,Possible,NA,NA,May reduce warfarin effect,20000001,Effect of St John's wort on warfarin pharmacokinetics,NA,HFDI
+D00001,Warfarin,NA,NA,NA,H00100,Hypericum perforatum,Herb,NA,NA,NA,NA,Clearance increased,Rat,NA,NA,NA,NA,Possible,NA,NA,May reduce warfarin effect,20000001,Effect of St John's wort on warfarin pharmacokinetics,NA,HFDI
+D00001,Warfarin,NA,NA,NA,H00100,Hypericum perforatum,Herb,NA,NA,NA,NA,No change,NA,NA,NA,NA,NA,No Effect,NA,NA,No effect observed,NA,Package insert statement,NA,HFDI
+D00001,Warfarin,NA,NA,NA,F00001,Grapefruit juice,Food,NA,NA,NA,NA,NA,Homo Sapiens,NA,NA,NA,NA,Possible,NA,NA,NA,20000002,Effect of St John's wort on warfarin pharmacokinetics,NA,HFDI
+D00003,Zzdrugamide,NA,NA,NA,H05555,Mystery root,Herb,NA,NA,NA,NA,NA,Dog,NA,NA,NA,NA,Harmful,NA,NA,NA,20000003,Effect of St John's wort on warfarin pharmacokinetics,NA,HFDI
+NA,Warfarin,NA,NA,NA,H00100,Hypericum perforatum,Herb,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,Possible,NA,NA,NA,NA,Effect of St John's wort on warfarin pharmacokinetics,NA,HFDI

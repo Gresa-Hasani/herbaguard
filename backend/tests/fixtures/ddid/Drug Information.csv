@@ -1,0 +1,4 @@
+FHDI_Drug_ID,Drug_Name,Synonyms,Drug_Type,Company,Summary,Formula,Canonical_SMILES,InChI,InChIKey,TTD_ID,DrugBank_ID,PubChem_Compound_ID,PubChem_Substance_ID,ChEBI_ID,CAS_Number,ADReCS_Drug_ID
+D00001,Warfarin,Coumadin; Jantoven,NA,NA,NA,NA,NA,NA,PJVWKTKQMONHTI-UHFFFAOYSA-N,NA,DB00682,NA,NA,NA,NA,NA
+D00002,Sertraline hydrochloride,sertraline; Zoloft,NA,NA,NA,NA,NA,NA,NA,NA,DB01104,NA,NA,NA,NA,NA
+D00003,Zzdrugamide,NA,NA,NA,NA,NA,NA,NA,NA,NA,DB99999,NA,NA,NA,NA,NA

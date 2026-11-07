@@ -1,0 +1,854 @@
+{
+  "dataset": "expanded-v2",
+  "generated_at": "2026-11-07T00:07:07.113075+00:00",
+  "corpus": {
+    "evidence_items_by_source": {
+      "fda_cyp_table": 1,
+      "openfda_label": 270,
+      "pubmed": 660,
+      "ema_hmpc": 214,
+      "ddid": 2847,
+      "nccih": 75
+    },
+    "segments": 5106
+  },
+  "retrieval_settings": {
+    "segment_strategy": "sentence_window",
+    "segment_max_chars": 1200,
+    "segment_overlap_sentences": 1,
+    "segment_strategy_by_source": {},
+    "segment_max_chars_by_source": {},
+    "retrieval_keyword_top_k": 40,
+    "retrieval_vector_top_k": 40,
+    "retrieval_top_k": 10,
+    "retrieval_rrf_k": 60,
+    "retrieval_keyword_weight": 1.0,
+    "retrieval_vector_weight": 1.0,
+    "retrieval_min_similarity": 0.0,
+    "retrieval_max_per_evidence_item": 2,
+    "retrieval_source_weights": {}
+  },
+  "runs": [
+    {
+      "mode": "keyword",
+      "embedding_model": null,
+      "questions_scored": 2,
+      "questions_without_relevant_items": [
+        "v2-ginkgo-cyclosporine-animal",
+        "v2-milk-thistle-cyclosporine-animal",
+        "v2-sjw-rivaroxaban-unknown-species",
+        "v2-green-tea-rosuvastatin-human",
+        "v2-ginkgo-midazolam-dose-context",
+        "v2-personal-dosing",
+        "v2-emergency"
+      ],
+      "externally_blocked_rxnav": [],
+      "summary": {
+        "recall@5": 0.0,
+        "precision@5": 0.0,
+        "hit@5": 0.0,
+        "duplicate_rate@5": 0.0,
+        "sources@5": 2.0,
+        "recall@10": 0.25,
+        "precision@10": 0.05,
+        "hit@10": 0.5,
+        "duplicate_rate@10": 0.05,
+        "sources@10": 2.5,
+        "mrr": 0.05,
+        "latency_ms_median": 36,
+        "latency_ms_p95": 54
+      },
+      "by_category": {
+        "human_clinical": {
+          "hit@5": 0.0,
+          "recall@10": 0.0,
+          "mrr": 0.0
+        },
+        "human_clinical_and_negative": {
+          "hit@5": 0.0,
+          "recall@10": 0.5,
+          "mrr": 0.1
+        }
+      },
+      "per_question": [
+        {
+          "id": "v2-ginseng-warfarin-mixed",
+          "category": "human_clinical_and_negative",
+          "relevant": 2,
+          "ranks": [
+            10
+          ],
+          "latency_ms": 103,
+          "metrics": {
+            "recall@5": 0.0,
+            "precision@5": 0.0,
+            "hit@5": 0.0,
+            "duplicate_rate@5": 0.0,
+            "sources@5": 2.0,
+            "recall@10": 0.5,
+            "precision@10": 0.1,
+            "hit@10": 1.0,
+            "duplicate_rate@10": 0.0,
+            "sources@10": 3.0,
+            "mrr": 0.1
+          },
+          "sources": [
+            "nccih",
+            "openfda_label",
+            "pubmed"
+          ],
+          "notes": []
+        },
+        {
+          "id": "v2-ginkgo-cyclosporine-animal",
+          "category": "animal_only",
+          "relevant": 0,
+          "ranks": [],
+          "latency_ms": 30,
+          "metrics": {
+            "recall@5": 0.0,
+            "precision@5": 0.0,
+            "hit@5": 0.0,
+            "duplicate_rate@5": 0.0,
+            "sources@5": 2.0,
+            "recall@10": 0.0,
+            "precision@10": 0.0,
+            "hit@10": 0.0,
+            "duplicate_rate@10": 0.1,
+            "sources@10": 2.0,
+            "mrr": 0.0
+          },
+          "sources": [
+            "ema_hmpc",
+            "pubmed"
+          ],
+          "notes": []
+        },
+        {
+          "id": "v2-milk-thistle-cyclosporine-animal",
+          "category": "animal_only",
+          "relevant": 0,
+          "ranks": [],
+          "latency_ms": 36,
+          "metrics": {
+            "recall@5": 0.0,
+            "precision@5": 0.0,
+            "hit@5": 0.0,
+            "duplicate_rate@5": 0.0,
+            "sources@5": 2.0,
+            "recall@10": 0.0,
+            "precision@10": 0.0,
+            "hit@10": 0.0,
+            "duplicate_rate@10": 0.0,
+            "sources@10": 2.0,
+            "mrr": 0.0
+          },
+          "sources": [
+            "nccih",
+            "pubmed"
+          ],
+          "notes": []
+        },
+        {
+          "id": "v2-sjw-rivaroxaban-unknown-species",
+          "category": "species_not_stated",
+          "relevant": 0,
+          "ranks": [],
+          "latency_ms": 51,
+          "metrics": {
+            "recall@5": 0.0,
+            "precision@5": 0.0,
+            "hit@5": 0.0,
+            "duplicate_rate@5": 0.0,
+            "sources@5": 2.0,
+            "recall@10": 0.0,
+            "precision@10": 0.0,
+            "hit@10": 0.0,
+            "duplicate_rate@10": 0.1,
+            "sources@10": 2.0,
+            "mrr": 0.0
+          },
+          "sources": [
+            "nccih",
+            "pubmed"
+          ],
+          "notes": []
+        },
+        {
+          "id": "v2-green-tea-rosuvastatin-human",
+          "category": "human_clinical",
+          "relevant": 0,
+          "ranks": [],
+          "latency_ms": 43,
+          "metrics": {
+            "recall@5": 0.0,
+            "precision@5": 0.0,
+            "hit@5": 0.0,
+            "duplicate_rate@5": 0.0,
+            "sources@5": 3.0,
+            "recall@10": 0.0,
+            "precision@10": 0.0,
+            "hit@10": 0.0,
+            "duplicate_rate@10": 0.0,
+            "sources@10": 3.0,
+            "mrr": 0.0
+          },
+          "sources": [
+            "ema_hmpc",
+            "nccih",
+            "pubmed"
+          ],
+          "notes": []
+        },
+        {
+          "id": "v2-ginkgo-midazolam-dose-context",
+          "category": "preparation_and_dose_context",
+          "relevant": 0,
+          "ranks": [],
+          "latency_ms": 35,
+          "metrics": {
+            "recall@5": 0.0,
+            "precision@5": 0.0,
+            "hit@5": 0.0,
+            "duplicate_rate@5": 0.0,
+            "sources@5": 2.0,
+            "recall@10": 0.0,
+            "precision@10": 0.0,
+            "hit@10": 0.0,
+            "duplicate_rate@10": 0.0,
+            "sources@10": 2.0,
+            "mrr": 0.0
+          },
+          "sources": [
+            "ema_hmpc",
+            "pubmed"
+          ],
+          "notes": []
+        },
+        {
+          "id": "v2-sjw-imatinib",
+          "category": "human_clinical",
+          "relevant": 5,
+          "ranks": [],
+          "latency_ms": 54,
+          "metrics": {
+            "recall@5": 0.0,
+            "precision@5": 0.0,
+            "hit@5": 0.0,
+            "duplicate_rate@5": 0.0,
+            "sources@5": 2.0,
+            "recall@10": 0.0,
+            "precision@10": 0.0,
+            "hit@10": 0.0,
+            "duplicate_rate@10": 0.1,
+            "sources@10": 2.0,
+            "mrr": 0.0
+          },
+          "sources": [
+            "nccih",
+            "pubmed"
+          ],
+          "notes": []
+        },
+        {
+          "id": "v2-personal-dosing",
+          "category": "dosing_refusal",
+          "relevant": 0,
+          "ranks": [],
+          "latency_ms": 31,
+          "metrics": {
+            "recall@5": 0.0,
+            "precision@5": 0.0,
+            "hit@5": 0.0,
+            "duplicate_rate@5": 0.0,
+            "sources@5": 2.0,
+            "recall@10": 0.0,
+            "precision@10": 0.0,
+            "hit@10": 0.0,
+            "duplicate_rate@10": 0.0,
+            "sources@10": 2.0,
+            "mrr": 0.0
+          },
+          "sources": [
+            "nccih",
+            "pubmed"
+          ],
+          "notes": []
+        },
+        {
+          "id": "v2-emergency",
+          "category": "emergency_referral",
+          "relevant": 0,
+          "ranks": [],
+          "latency_ms": 35,
+          "metrics": {
+            "recall@5": 0.0,
+            "precision@5": 0.0,
+            "hit@5": 0.0,
+            "duplicate_rate@5": 0.0,
+            "sources@5": 1.0,
+            "recall@10": 0.0,
+            "precision@10": 0.0,
+            "hit@10": 0.0,
+            "duplicate_rate@10": 0.0,
+            "sources@10": 2.0,
+            "mrr": 0.0
+          },
+          "sources": [
+            "ema_hmpc",
+            "pubmed"
+          ],
+          "notes": []
+        }
+      ]
+    },
+    {
+      "mode": "semantic",
+      "embedding_model": "nomic-embed-text",
+      "questions_scored": 2,
+      "questions_without_relevant_items": [
+        "v2-ginkgo-cyclosporine-animal",
+        "v2-milk-thistle-cyclosporine-animal",
+        "v2-sjw-rivaroxaban-unknown-species",
+        "v2-green-tea-rosuvastatin-human",
+        "v2-ginkgo-midazolam-dose-context",
+        "v2-personal-dosing",
+        "v2-emergency"
+      ],
+      "externally_blocked_rxnav": [],
+      "summary": {
+        "recall@5": 0.1,
+        "precision@5": 0.1,
+        "hit@5": 0.5,
+        "duplicate_rate@5": 0.0,
+        "sources@5": 1.5,
+        "recall@10": 0.1,
+        "precision@10": 0.05,
+        "hit@10": 0.5,
+        "duplicate_rate@10": 0.05,
+        "sources@10": 1.5,
+        "mrr": 0.25,
+        "latency_ms_median": 361,
+        "latency_ms_p95": 481
+      },
+      "by_category": {
+        "human_clinical": {
+          "hit@5": 1.0,
+          "recall@10": 0.2,
+          "mrr": 0.5
+        },
+        "human_clinical_and_negative": {
+          "hit@5": 0.0,
+          "recall@10": 0.0,
+          "mrr": 0.0
+        }
+      },
+      "per_question": [
+        {
+          "id": "v2-ginseng-warfarin-mixed",
+          "category": "human_clinical_and_negative",
+          "relevant": 2,
+          "ranks": [],
+          "latency_ms": 990,
+          "metrics": {
+            "recall@5": 0.0,
+            "precision@5": 0.0,
+            "hit@5": 0.0,
+            "duplicate_rate@5": 0.0,
+            "sources@5": 1.0,
+            "recall@10": 0.0,
+            "precision@10": 0.0,
+            "hit@10": 0.0,
+            "duplicate_rate@10": 0.1,
+            "sources@10": 1.0,
+            "mrr": 0.0
+          },
+          "sources": [
+            "pubmed"
+          ],
+          "notes": []
+        },
+        {
+          "id": "v2-ginkgo-cyclosporine-animal",
+          "category": "animal_only",
+          "relevant": 0,
+          "ranks": [],
+          "latency_ms": 353,
+          "metrics": {
+            "recall@5": 0.0,
+            "precision@5": 0.0,
+            "hit@5": 0.0,
+            "duplicate_rate@5": 0.2,
+            "sources@5": 2.0,
+            "recall@10": 0.0,
+            "precision@10": 0.0,
+            "hit@10": 0.0,
+            "duplicate_rate@10": 0.1,
+            "sources@10": 2.0,
+            "mrr": 0.0
+          },
+          "sources": [
+            "openfda_label",
+            "pubmed"
+          ],
+          "notes": []
+        },
+        {
+          "id": "v2-milk-thistle-cyclosporine-animal",
+          "category": "animal_only",
+          "relevant": 0,
+          "ranks": [],
+          "latency_ms": 338,
+          "metrics": {
+            "recall@5": 0.0,
+            "precision@5": 0.0,
+            "hit@5": 0.0,
+            "duplicate_rate@5": 0.0,
+            "sources@5": 2.0,
+            "recall@10": 0.0,
+            "precision@10": 0.0,
+            "hit@10": 0.0,
+            "duplicate_rate@10": 0.0,
+            "sources@10": 2.0,
+            "mrr": 0.0
+          },
+          "sources": [
+            "nccih",
+            "pubmed"
+          ],
+          "notes": []
+        },
+        {
+          "id": "v2-sjw-rivaroxaban-unknown-species",
+          "category": "species_not_stated",
+          "relevant": 0,
+          "ranks": [],
+          "latency_ms": 381,
+          "metrics": {
+            "recall@5": 0.0,
+            "precision@5": 0.0,
+            "hit@5": 0.0,
+            "duplicate_rate@5": 0.0,
+            "sources@5": 2.0,
+            "recall@10": 0.0,
+            "precision@10": 0.0,
+            "hit@10": 0.0,
+            "duplicate_rate@10": 0.0,
+            "sources@10": 3.0,
+            "mrr": 0.0
+          },
+          "sources": [
+            "nccih",
+            "openfda_label",
+            "pubmed"
+          ],
+          "notes": []
+        },
+        {
+          "id": "v2-green-tea-rosuvastatin-human",
+          "category": "human_clinical",
+          "relevant": 0,
+          "ranks": [],
+          "latency_ms": 324,
+          "metrics": {
+            "recall@5": 0.0,
+            "precision@5": 0.0,
+            "hit@5": 0.0,
+            "duplicate_rate@5": 0.0,
+            "sources@5": 2.0,
+            "recall@10": 0.0,
+            "precision@10": 0.0,
+            "hit@10": 0.0,
+            "duplicate_rate@10": 0.2,
+            "sources@10": 2.0,
+            "mrr": 0.0
+          },
+          "sources": [
+            "nccih",
+            "pubmed"
+          ],
+          "notes": []
+        },
+        {
+          "id": "v2-ginkgo-midazolam-dose-context",
+          "category": "preparation_and_dose_context",
+          "relevant": 0,
+          "ranks": [],
+          "latency_ms": 361,
+          "metrics": {
+            "recall@5": 0.0,
+            "precision@5": 0.0,
+            "hit@5": 0.0,
+            "duplicate_rate@5": 0.0,
+            "sources@5": 2.0,
+            "recall@10": 0.0,
+            "precision@10": 0.0,
+            "hit@10": 0.0,
+            "duplicate_rate@10": 0.0,
+            "sources@10": 2.0,
+            "mrr": 0.0
+          },
+          "sources": [
+            "ema_hmpc",
+            "pubmed"
+          ],
+          "notes": []
+        },
+        {
+          "id": "v2-sjw-imatinib",
+          "category": "human_clinical",
+          "relevant": 5,
+          "ranks": [
+            2
+          ],
+          "latency_ms": 433,
+          "metrics": {
+            "recall@5": 0.2,
+            "precision@5": 0.2,
+            "hit@5": 1.0,
+            "duplicate_rate@5": 0.0,
+            "sources@5": 2.0,
+            "recall@10": 0.2,
+            "precision@10": 0.1,
+            "hit@10": 1.0,
+            "duplicate_rate@10": 0.0,
+            "sources@10": 2.0,
+            "mrr": 0.5
+          },
+          "sources": [
+            "nccih",
+            "pubmed"
+          ],
+          "notes": []
+        },
+        {
+          "id": "v2-personal-dosing",
+          "category": "dosing_refusal",
+          "relevant": 0,
+          "ranks": [],
+          "latency_ms": 481,
+          "metrics": {
+            "recall@5": 0.0,
+            "precision@5": 0.0,
+            "hit@5": 0.0,
+            "duplicate_rate@5": 0.0,
+            "sources@5": 1.0,
+            "recall@10": 0.0,
+            "precision@10": 0.0,
+            "hit@10": 0.0,
+            "duplicate_rate@10": 0.0,
+            "sources@10": 2.0,
+            "mrr": 0.0
+          },
+          "sources": [
+            "openfda_label",
+            "pubmed"
+          ],
+          "notes": []
+        },
+        {
+          "id": "v2-emergency",
+          "category": "emergency_referral",
+          "relevant": 0,
+          "ranks": [],
+          "latency_ms": 361,
+          "metrics": {
+            "recall@5": 0.0,
+            "precision@5": 0.0,
+            "hit@5": 0.0,
+            "duplicate_rate@5": 0.0,
+            "sources@5": 2.0,
+            "recall@10": 0.0,
+            "precision@10": 0.0,
+            "hit@10": 0.0,
+            "duplicate_rate@10": 0.0,
+            "sources@10": 3.0,
+            "mrr": 0.0
+          },
+          "sources": [
+            "ema_hmpc",
+            "nccih",
+            "pubmed"
+          ],
+          "notes": []
+        }
+      ]
+    },
+    {
+      "mode": "hybrid",
+      "embedding_model": "nomic-embed-text",
+      "questions_scored": 2,
+      "questions_without_relevant_items": [
+        "v2-ginkgo-cyclosporine-animal",
+        "v2-milk-thistle-cyclosporine-animal",
+        "v2-sjw-rivaroxaban-unknown-species",
+        "v2-green-tea-rosuvastatin-human",
+        "v2-ginkgo-midazolam-dose-context",
+        "v2-personal-dosing",
+        "v2-emergency"
+      ],
+      "externally_blocked_rxnav": [],
+      "summary": {
+        "recall@5": 0.1,
+        "precision@5": 0.1,
+        "hit@5": 0.5,
+        "duplicate_rate@5": 0.0,
+        "sources@5": 1.5,
+        "recall@10": 0.6,
+        "precision@10": 0.15,
+        "hit@10": 1.0,
+        "duplicate_rate@10": 0.05,
+        "sources@10": 2.0,
+        "mrr": 0.3056,
+        "latency_ms_median": 405,
+        "latency_ms_p95": 1122
+      },
+      "by_category": {
+        "human_clinical": {
+          "hit@5": 1.0,
+          "recall@10": 0.2,
+          "mrr": 0.5
+        },
+        "human_clinical_and_negative": {
+          "hit@5": 0.0,
+          "recall@10": 1.0,
+          "mrr": 0.111
+        }
+      },
+      "per_question": [
+        {
+          "id": "v2-ginseng-warfarin-mixed",
+          "category": "human_clinical_and_negative",
+          "relevant": 2,
+          "ranks": [
+            9,
+            10
+          ],
+          "latency_ms": 381,
+          "metrics": {
+            "recall@5": 0.0,
+            "precision@5": 0.0,
+            "hit@5": 0.0,
+            "duplicate_rate@5": 0.0,
+            "sources@5": 1.0,
+            "recall@10": 1.0,
+            "precision@10": 0.2,
+            "hit@10": 1.0,
+            "duplicate_rate@10": 0.1,
+            "sources@10": 2.0,
+            "mrr": 0.1111111111111111
+          },
+          "sources": [
+            "openfda_label",
+            "pubmed"
+          ],
+          "notes": []
+        },
+        {
+          "id": "v2-ginkgo-cyclosporine-animal",
+          "category": "animal_only",
+          "relevant": 0,
+          "ranks": [],
+          "latency_ms": 373,
+          "metrics": {
+            "recall@5": 0.0,
+            "precision@5": 0.0,
+            "hit@5": 0.0,
+            "duplicate_rate@5": 0.2,
+            "sources@5": 2.0,
+            "recall@10": 0.0,
+            "precision@10": 0.0,
+            "hit@10": 0.0,
+            "duplicate_rate@10": 0.1,
+            "sources@10": 3.0,
+            "mrr": 0.0
+          },
+          "sources": [
+            "ema_hmpc",
+            "openfda_label",
+            "pubmed"
+          ],
+          "notes": []
+        },
+        {
+          "id": "v2-milk-thistle-cyclosporine-animal",
+          "category": "animal_only",
+          "relevant": 0,
+          "ranks": [],
+          "latency_ms": 405,
+          "metrics": {
+            "recall@5": 0.0,
+            "precision@5": 0.0,
+            "hit@5": 0.0,
+            "duplicate_rate@5": 0.0,
+            "sources@5": 2.0,
+            "recall@10": 0.0,
+            "precision@10": 0.0,
+            "hit@10": 0.0,
+            "duplicate_rate@10": 0.2,
+            "sources@10": 2.0,
+            "mrr": 0.0
+          },
+          "sources": [
+            "nccih",
+            "pubmed"
+          ],
+          "notes": []
+        },
+        {
+          "id": "v2-sjw-rivaroxaban-unknown-species",
+          "category": "species_not_stated",
+          "relevant": 0,
+          "ranks": [],
+          "latency_ms": 1267,
+          "metrics": {
+            "recall@5": 0.0,
+            "precision@5": 0.0,
+            "hit@5": 0.0,
+            "duplicate_rate@5": 0.0,
+            "sources@5": 2.0,
+            "recall@10": 0.0,
+            "precision@10": 0.0,
+            "hit@10": 0.0,
+            "duplicate_rate@10": 0.0,
+            "sources@10": 2.0,
+            "mrr": 0.0
+          },
+          "sources": [
+            "nccih",
+            "pubmed"
+          ],
+          "notes": []
+        },
+        {
+          "id": "v2-green-tea-rosuvastatin-human",
+          "category": "human_clinical",
+          "relevant": 0,
+          "ranks": [],
+          "latency_ms": 339,
+          "metrics": {
+            "recall@5": 0.0,
+            "precision@5": 0.0,
+            "hit@5": 0.0,
+            "duplicate_rate@5": 0.0,
+            "sources@5": 2.0,
+            "recall@10": 0.0,
+            "precision@10": 0.0,
+            "hit@10": 0.0,
+            "duplicate_rate@10": 0.1,
+            "sources@10": 2.0,
+            "mrr": 0.0
+          },
+          "sources": [
+            "nccih",
+            "pubmed"
+          ],
+          "notes": []
+        },
+        {
+          "id": "v2-ginkgo-midazolam-dose-context",
+          "category": "preparation_and_dose_context",
+          "relevant": 0,
+          "ranks": [],
+          "latency_ms": 411,
+          "metrics": {
+            "recall@5": 0.0,
+            "precision@5": 0.0,
+            "hit@5": 0.0,
+            "duplicate_rate@5": 0.0,
+            "sources@5": 2.0,
+            "recall@10": 0.0,
+            "precision@10": 0.0,
+            "hit@10": 0.0,
+            "duplicate_rate@10": 0.0,
+            "sources@10": 2.0,
+            "mrr": 0.0
+          },
+          "sources": [
+            "ema_hmpc",
+            "pubmed"
+          ],
+          "notes": []
+        },
+        {
+          "id": "v2-sjw-imatinib",
+          "category": "human_clinical",
+          "relevant": 5,
+          "ranks": [
+            2
+          ],
+          "latency_ms": 1122,
+          "metrics": {
+            "recall@5": 0.2,
+            "precision@5": 0.2,
+            "hit@5": 1.0,
+            "duplicate_rate@5": 0.0,
+            "sources@5": 2.0,
+            "recall@10": 0.2,
+            "precision@10": 0.1,
+            "hit@10": 1.0,
+            "duplicate_rate@10": 0.0,
+            "sources@10": 2.0,
+            "mrr": 0.5
+          },
+          "sources": [
+            "nccih",
+            "pubmed"
+          ],
+          "notes": []
+        },
+        {
+          "id": "v2-personal-dosing",
+          "category": "dosing_refusal",
+          "relevant": 0,
+          "ranks": [],
+          "latency_ms": 409,
+          "metrics": {
+            "recall@5": 0.0,
+            "precision@5": 0.0,
+            "hit@5": 0.0,
+            "duplicate_rate@5": 0.0,
+            "sources@5": 2.0,
+            "recall@10": 0.0,
+            "precision@10": 0.0,
+            "hit@10": 0.0,
+            "duplicate_rate@10": 0.0,
+            "sources@10": 2.0,
+            "mrr": 0.0
+          },
+          "sources": [
+            "openfda_label",
+            "pubmed"
+          ],
+          "notes": []
+        },
+        {
+          "id": "v2-emergency",
+          "category": "emergency_referral",
+          "relevant": 0,
+          "ranks": [],
+          "latency_ms": 354,
+          "metrics": {
+            "recall@5": 0.0,
+            "precision@5": 0.0,
+            "hit@5": 0.0,
+            "duplicate_rate@5": 0.0,
+            "sources@5": 3.0,
+            "recall@10": 0.0,
+            "precision@10": 0.0,
+            "hit@10": 0.0,
+            "duplicate_rate@10": 0.0,
+            "sources@10": 3.0,
+            "mrr": 0.0
+          },
+          "sources": [
+            "ema_hmpc",
+            "nccih",
+            "pubmed"
+          ],
+          "notes": []
+        }
+      ]
+    }
+  ]
+}

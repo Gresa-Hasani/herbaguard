@@ -58,7 +58,10 @@ Short records of decisions that shape HerbaGuard. Status values: *Accepted*, *Su
 
 ## ADR-009 — LLM provider
 
-- **Status:** **Pending** — user decision required before Phase 5 (hosted API key, local Ollama, or extractive-only). The architecture supports all three behind one interface; extractive-only mode will always be available.
+- **Status:** Accepted (Phase 5; was pending since Phase 0).
+- **Decision:** A provider-independent interface (`ai/providers/`) with three adapters over plain HTTP: **Ollama (default, local, `qwen3:4b`)**, Anthropic and OpenAI (optional; key and model only from configuration). An `extractive` mode composes answers from stored excerpts without a model. Provider and optional fallback are chosen by configuration only; HerbaGuard never switches provider on its own and records which provider answered. Details: [../ai/llm-providers.md](../ai/llm-providers.md).
+- **Reason:** The platform must run end to end without paid services (judges, local development), while allowing a stronger hosted model when available.
+- **Consequences:** CPU-only inference is slow (~1–2 min per answer on the development machine); cloud adapters are contract-tested with mocked HTTP until keys are available; cloud providers receive source text only under the licensing guard.
 
 ## ADR-010 — Python packaging with pip
 
@@ -121,3 +124,29 @@ Short records of decisions that shape HerbaGuard. Status values: *Accepted*, *Su
 - **Context:** Phase 4 returned paths and a count of qualifying paths. An empty list could mean "herb not identified", "no herb effect stored", "drug not in FDA's table" or "no shared target", and the paths endpoint showed the mechanism-finding caveat even when there was no path. Opposite statements (induction and inhibition) were not detected.
 - **Decision:** A pure function `assess_mechanism` gives each pair one finding: `mechanism_supported`, `conflicting_mechanism_evidence`, `experimental_mechanism_evidence_only`, `insufficient_mechanism_evidence`, `no_documented_mechanism_found` or `not_assessed`, with an explanation that never implies safety. Rule 7 makes conflicting targets non-qualifying. Only `mechanism_supported` can influence the A–E class (unchanged: B when no statement gives A). Hedged source wording is stored and shown, not scored.
 - **Consequences:** No change to any Phase 3 result. Users can see why a mechanism result is empty. Rules: [../api/mechanism-paths.md](../api/mechanism-paths.md).
+
+## ADR-021 — Model-independent retrieval index (segments + per-model embeddings)
+
+- **Status:** Accepted (Phase 5)
+- **Context:** Phase 1 reserved `chunk.embedding vector(384)` (never populated). A fixed column ties the schema to one model, cannot hold a benchmark of several models, and gives no stale detection. Chunks are also the canonical citation text used by Phase 2 validation, so they cannot be re-cut for retrieval.
+- **Decision:** Migration 0005 adds `retrieval_segment` (character ranges of chunk text, strategy + version, chunk/text hashes, full-text vector) and `segment_embedding` (one vector per segment and model, unconstrained dimension with a CHECK against `dimension`, model version, provider, hash, timestamp; partial HNSW index per model). The unused chunk vector column is dropped. Indexing is an incremental CLI run (`herbaguard ai index`) recorded as an ingestion run.
+- **Consequences:** Models and dimensions can be changed or compared without migrations; vectors of different models/versions are never compared; only new or changed text is re-embedded; the index is derived data and can be rebuilt. The Phase 1 vector test was ported to the new tables (same intent, plus a two-model check).
+
+## ADR-022 — The language model explains; code decides and validates
+
+- **Status:** Accepted (Phase 5)
+- **Decision:** The AI layer never classifies. `/ai/ask` calls the existing interaction service and returns its classification unchanged; the model receives it as context. Model output is structured JSON citing context ids and is validated in code: invalid citations and unsupported paragraphs are removed; a different class letter, a safety claim, a medical directive, or nothing left → the answer is rejected (`rejected_by_validation`) and not shown. Citation URLs and excerpts are always taken from the database. Token-limited (partial) output is a failure.
+- **Alternatives:** Trusting prompt instructions alone (rejected: not verifiable); an LLM judge (rejected as sole check: not deterministic, same failure modes).
+- **Consequences:** Some correct answers are rejected (conservative patterns); validation does not prove paraphrase faithfulness — answers always ship with verbatim excerpts and manual review is part of the evaluation.
+
+## ADR-023 — Deterministic question understanding
+
+- **Status:** Accepted (Phase 5)
+- **Decision:** Entities are found by n-gram lookup in the existing name tables and resolved with the existing services (ambiguity → HTTP 409 with candidates, never a guess; brand names through RxNav, at most three lookups); intent comes from fixed rules. No LLM is involved in entity resolution.
+- **Consequences:** Reproducible scoping of retrieval and classification; misspellings and names not in the tables are not recognised (the question is then answered only from high-similarity passages or reported as insufficient).
+
+## ADR-024 — No storage of questions or answers
+
+- **Status:** Accepted (Phase 5)
+- **Decision:** `/ai/ask` stores nothing about the request; the `ai_request` log event holds only metrics (intent, status, provider, model, durations, counts, tokens, validation issue counts). Evaluation reports are files produced on demand.
+- **Consequences:** No retention or deletion obligations for user questions in the MVP; usage analytics beyond these metrics are not possible.
