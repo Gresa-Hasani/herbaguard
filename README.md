@@ -22,11 +22,66 @@ HerbaGuard combines herb-side regulatory monographs (EMA HMPC), drug-side labels
 | 3 | Backend and core APIs | Done — see [`docs/api/`](docs/api/) |
 | 4 | Knowledge graph and mechanism integration | Done — see [`docs/api/mechanism-paths.md`](docs/api/mechanism-paths.md), [`docs/data/mechanism-sources.md`](docs/data/mechanism-sources.md) |
 | 5 | AI, hybrid RAG and multi-provider LLM | Done — see [`docs/ai/`](docs/ai/) |
-| 6 | Frontend modules | Not started — module pages are placeholders |
-| 7 | Integration and validation | Not started |
-| 8 | Submission | Not started |
+| 5+ | Dataset expansion (DDID, SUPP.AI, LiverTox, NIH DSLD) | Done — see [`docs/data/external-datasets.md`](docs/data/external-datasets.md), [`docs/data/ddid.md`](docs/data/ddid.md) |
+| 6 | Frontend modules | Done — Interaction Checker, Herb Explorer, Evidence Assistant, Sources, About; see [`docs/frontend/`](docs/frontend/) |
+| 7 | Integration and validation | Done for the hackathon scope — live AI evaluation runs in [`docs/ai/evaluation.md`](docs/ai/evaluation.md); manual expert review still open (see *Limitations*) |
+| 8 | Submission | Devpost page, pitch video and slide deck |
 
-**Implemented now:** project structure; database schema with provenance tables (migrations 0001–0006); FastAPI service (health, readiness, metadata, standard error format, request IDs, structured logging); React application shell with the persistent disclaimer; Docker Compose stack; tests and CI; and a **data pipeline** that ingests the 16 curated herbs from WFO/WCVP/NCBI/GBIF/Wikidata, EMA herbal monographs, NCCIH fact sheets, openFDA drug labels, RxNorm/ATC and PubMed with full provenance and validation. The **REST API** (Phase 3) serves plants, drugs, evidence, sources/coverage and a deterministic herb–drug **interaction check (classes A–E)** with full provenance — see [`docs/api/`](docs/api/). **Phase 4** adds the mechanism layer: 18 enzymes/transporters, drug roles from FDA's CYP/transporter table, herb effects from EU monographs, graph and path endpoints, and conservative mechanism-based class B. **Phase 5** adds an evidence-grounded AI layer: hybrid retrieval (PostgreSQL full-text + pgvector, RRF) over a model-independent index, a provider-independent LLM interface (local Ollama/Qwen3-4B by default; Anthropic/OpenAI optional), cited answers validated in code, and the deterministic A–E class always taken from the interaction service — see [`docs/ai/`](docs/ai/). The web app does not use the API yet (Phase 6).
+**What is implemented:**
+
+- **Data pipeline** — ingests the 16 curated herbs (21 taxa) from WFO/WCVP/NCBI/GBIF/Wikidata, EMA herbal monographs, NCCIH fact sheets, openFDA drug labels, RxNorm/ATC and PubMed, with raw snapshots, full provenance and validation (`herbaguard validate`). Expanded with DDID (herb–drug interaction records), SUPP.AI (ML-extracted interaction sentences), LiverTox (hepatotoxicity) and NIH DSLD (product labels), each kept as its own evidence kind.
+- **REST API** (FastAPI, PostgreSQL + pgvector; migrations 0001–0007) — plants, drugs, evidence, sources and coverage, and a deterministic herb–drug **interaction check (classes A–E)** with source quotes and provenance.
+- **Mechanism layer** — 18 enzymes/transporters, drug roles from FDA's CYP/transporter table, herb effects from EU monographs, graph and path endpoints, conservative mechanism-based class B.
+- **AI Evidence Assistant** — hybrid retrieval (PostgreSQL full-text + pgvector, RRF), a provider-independent LLM interface (local Ollama/Qwen3-4B by default; Anthropic/OpenAI optional), citations validated in code, and the A–E class always taken from the deterministic service, never from the model. A validated answer cache serves the suggested questions instantly.
+- **Web app** (React + TypeScript) — public site (landing, About, Sources & methodology with licence details) and a workspace with:
+  - **Interaction Checker** — one herb + one or more drugs → class A–E per pair, evidence with source quotes, mechanism assessment and a short explanation of what the class means;
+  - **Herb Explorer** — all 21 taxa with identifiers, EMA status, indications, warnings and per-source coverage, including product-label coverage;
+  - **Evidence Assistant** — cited answers with source pills and tooltips; emergency and dosing questions are referred, not answered;
+  - a persistent medical disclaimer on every page.
+- **Engineering** — Docker Compose stack, backend and frontend test suites, ruff + strict mypy, ESLint, CI on every push.
+
+## Results
+
+All numbers below are measured, and come from the linked reports.
+
+**Data quality** (Phase 2 run, [`docs/data/ingestion-results.md`](docs/data/ingestion-results.md)):
+
+- every curated taxon resolves to exactly one accepted WFO record;
+- 100 % provenance coverage on all core tables; 545/545 interaction excerpts are verbatim in the stored source text;
+- EMA PDF extraction cross-checked against a second extractor: 256 columns, 0 mismatches;
+- 1,219 evidence items and 545 interaction statements (EMA 172, NCCIH 48, openFDA 307 active).
+
+**AI Evidence Assistant** (local Qwen3-4B via Ollama, CPU only; 46 questions in two evaluation sets; [`docs/ai/evaluation.md`](docs/ai/evaluation.md) §6, reports in [`docs/ai/results/`](docs/ai/results/)):
+
+| Check | Baseline set (35 q.) | Expanded set (11 q.) |
+|---|---|---|
+| Interaction class identical to the deterministic service | 100 % | 100 % |
+| Citation validity (every cited id exists in the database) | 100 % | 100 % |
+| Answered / insufficient evidence / rejected by validation | 22 / 5 / 7 | 4 / 4 / 0 |
+| Errors | 0 | 0 |
+| Median latency | 126 s | 132 s |
+
+Retrieval (baseline set, hybrid with nomic-embed-text): Hit@5 0.871, Recall@10 0.635, MRR 0.759 ([`docs/ai/embedding-models.md`](docs/ai/embedding-models.md)).
+
+Rejections are deliberate: the validator refuses any answer that turns source wording into a safety claim, and questions about plants or entities not covered return "insufficient evidence" instead of a guess.
+
+## Limitations
+
+- **Coverage is curated:** 16 herbs (21 taxa). A herb outside this set is reported as not covered, never as "no interaction".
+- **No interaction found ≠ safe.** Classes D/E mean the sources reviewed say nothing; the UI and API say so explicitly.
+- **AI checks are automated, not clinical.** They show class consistency and citation validity; they do not prove that every sentence is faithful to its sources. The manual review by a pharmacist/pharmacologist described in the evaluation doc has not been done. Known validator false positives and one model misreading (St John's wort + warfarin DDID record) are listed in [`docs/ai/evaluation.md`](docs/ai/evaluation.md) §6.
+- **Small evaluation sets,** written by the team, English only, no independent annotation.
+- **Evidence kinds differ in strength:** SUPP.AI sentences are ML-selected mentions, CAERS/spontaneous reports do not show causation, DDID animal or unstated-species records are not clinical evidence; each is labelled as such.
+- **DDID licence is not yet verified,** so DDID text is never sent to cloud models and is not redistributed.
+- **Local model latency** is about 2 minutes per answer on a CPU-only laptop; the suggested questions are served from the validated cache.
+
+## Future work
+
+- Expert (pharmacist) review of AI answers and a larger, independently annotated evaluation set.
+- Extend coverage from the curated set to all EMA herbal entries; the connectors are not herb-specific.
+- Safety-signal dashboard (CAERS, non-causal framing) and monograph → ICD-11 / MeSH mapping of indications and contraindications.
+- Fix the documented validator false positives; GPU or hosted model for faster answers.
+- Multilingual interface (Albanian, Greek, German, Italian) for the partner countries.
 
 ## Quick start (Docker)
 
@@ -39,7 +94,7 @@ docker compose up --build
 
 | Service | URL |
 |---|---|
-| Web app | http://localhost:18080 |
+| Web app | http://localhost:18080 (Interaction Checker, Herb Explorer, Evidence Assistant) |
 | API docs (OpenAPI) | http://localhost:18010/api/docs |
 | Readiness | http://localhost:18010/api/v1/health/ready |
 | PostgreSQL | `127.0.0.1:5455` (user/password/db `herbaguard`) |
